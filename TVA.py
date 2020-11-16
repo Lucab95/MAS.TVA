@@ -27,7 +27,7 @@ class Agent(object):
             weighted = True
         for j in range(self.considered_vote):
             for i in range(arr.shape[0]):
-                print("ind", i+1, arr[i, j])
+                # print("ind", i+1, arr[i, j])
                 vote = arr[i, j]
                 if weighted:
                     votes[vote] += (self.n_pref - j - 1)
@@ -47,7 +47,7 @@ class Agent(object):
         for i in range(self.n_voters):
             voter = list(df.iloc[i, 1:])  # get the preference's voter row
             for pos, vote in enumerate(voter):
-                print(pos, vote)
+                # print(pos, vote)
                 if pos == 0 and vote == self.ns_outcome[0][0]:
 
                 #     print("this voter choice is already the winner")
@@ -58,17 +58,19 @@ class Agent(object):
 
             #### NO DIFFERENCE WITH VOTING TYPE ####
     """calculate the distance necessary to calcualte the happiness"""
-    def calculate_distance(self, sorted_outcome): #same for every type of vote
+    def calculate_distance(self, arr, sorted_outcome): #same for every type of vote
         distance = {}
         for i in range(self.n_voters):
             # print("voter", i+1)
             max_d = self.n_pref
             distance_voter = 0
-            for (info, expressed_vote) in df.iloc[i, 1:].iteritems():
+            # for (info, expressed_vote) in df.iloc[i, 1:].iteritems():
+            for expressed_vote in range(arr.shape[1]):
+                # print("order",expressed_vote)
                 j = max_d  # J = W
                 for index2, v in enumerate(sorted_outcome):
                     k = self.n_pref - index2  # calculate k from outcome
-                    if v[0] == expressed_vote:  # look for the vote #TODO can be improved
+                    if v[0] == arr[i, expressed_vote]:  # look for the vote
                         distance_i = k - j
                         distance_voter += distance_i * j  # sum of distances of all alternatives * weights:
                         break
@@ -98,10 +100,9 @@ def main():
     ns_outcome = TVA.calculate_score(arr,True)
 
     ##### HAPPINESS #####
-    distance = TVA.calculate_distance(ns_outcome)
+    distance = TVA.calculate_distance(arr, ns_outcome)
     for d in distance:
-
-        happ = TVA.calculate_happiness(d)
+        happ = TVA.calculate_happiness(distance[d])
         happiness.append(happ)
 
     print("##### Non strategic results""")
