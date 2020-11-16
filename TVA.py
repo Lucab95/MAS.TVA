@@ -4,7 +4,7 @@ import string
 import numpy as np
 
 df = pd.read_csv('voting_example3.csv', sep=";")
-CONSIDERED_VOTE = 1  #  same number as candidates for BORDA, less for other types, Singularity = 1
+CONSIDERED_VOTE = 6  #  same number as candidates for BORDA, less for other types, Singularity = 1
                      #  Vote for two = 2, Anti plurality = range(1,n_pref)
 
 
@@ -20,23 +20,26 @@ class Agent(object):
 
 
     """calculate winner given votes"""
-    def calculate_score(self, votes, initial = False):
+    def calculate_score(self, arr, initial = False): #votes is the
+        votes = dict(zip(string.ascii_uppercase, [0] * self.n_pref)) #create dict to calculate outcomes from array
         weighted = False    # if type of vote is borda, we weigth the votes, else a vote is equal to 1
         if self.considered_vote == self.n_pref:
             weighted = True
-        for i in range(self.considered_vote):
-            for (index, j) in df.iloc[:, i + 1].iteritems():
-                print("ind", index, j)
+        for j in range(self.considered_vote):
+            for i in range(arr.shape[0]):
+                print("ind", i+1, arr[i, j])
+                vote = arr[i, j]
                 if weighted:
-                    votes[j] += (self.n_pref - i - 1)
+                    votes[vote] += (self.n_pref - j - 1)
                 else:
-                    votes[j] += 1
+                    votes[vote] += 1
         outcome = sorted(votes.items(), key=lambda x: x[1], reverse=True)
         if initial:
             self.ns_outcome = outcome
         return outcome
 
     """ calculate the happiness of the single voter given his distance"""
+    #not working, do not consider it
     def strategic_voting(self):
         bullet = True
         # if bullet:
@@ -85,16 +88,14 @@ def main():
     print(df.shape)
     n_pref = df.shape[1] - 1 #base case is borda
     n_voters = df.shape[0]
-    votes = dict(zip(string.ascii_uppercase, [0] * n_pref))
     happiness = []
     weighted_vote = True
-    # arr = df.to_numpy()
-    # print(arr[:,1:])
+    arr = df.to_numpy()[:,1:]
 
     TVA = Agent(n_pref, n_voters, CONSIDERED_VOTE)
 
     ##### NON STRATEGIC VOTING OUTCOME ######
-    ns_outcome = TVA.calculate_score(votes, True)
+    ns_outcome = TVA.calculate_score(arr,True)
 
     ##### HAPPINESS #####
     distance = TVA.calculate_distance(ns_outcome)
