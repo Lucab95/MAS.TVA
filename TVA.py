@@ -4,25 +4,58 @@ import string
 import numpy as np
 
 df = pd.read_csv('voting_example3.csv', sep=";")
+CONSIDERED_VOTE = 1  #  same number as candidates for BORDA, less for other types, Singularity = 1
+                     #  Vote for two = 2, Anti plurality = range(1,n_pref)
 
 
 class Agent(object):
-    def __init__(self, n_pref, n_voters):
+    def __init__(self, n_pref, n_voters,considered_vote):
         self.n_pref = n_pref
         self.n_voters = n_voters
         self.ns_outcome = {}
 
+        if considered_vote>n_pref or considered_vote <= 0:  # solve basics cases
+            considered_vote=n_pref
+        self.considered_vote = considered_vote
+
+
     """calculate winner given votes"""
     def calculate_score(self, votes, initial = False):
-        for i in range(self.n_pref):
+        weighted = False    # if type of vote is borda, we weigth the votes, else a vote is equal to 1
+        if self.considered_vote == self.n_pref:
+            weighted = True
+        for i in range(self.considered_vote):
             for (index, j) in df.iloc[:, i + 1].iteritems():
-                votes[j] += (self.n_pref - i - 1)
+                print("ind", index, j)
+                if weighted:
+                    votes[j] += (self.n_pref - i - 1)
+                else:
+                    votes[j] += 1
         outcome = sorted(votes.items(), key=lambda x: x[1], reverse=True)
         if initial:
             self.ns_outcome = outcome
         return outcome
 
-    def calculate_distance(self, sorted_outcome):
+    """ calculate the happiness of the single voter given his distance"""
+    def strategic_voting(self):
+        bullet = True
+        # if bullet:
+        strategic_voting = {}
+        for i in range(self.n_voters):
+            voter = list(df.iloc[i, 1:])  # get the preference's voter row
+            for pos, vote in enumerate(voter):
+                print(pos, vote)
+                if pos == 0 and vote == self.ns_outcome[0][0]:
+
+                #     print("this voter choice is already the winner")
+                    break
+                # elif cases of other votes
+        return len(strategic_voting)
+
+
+            #### NO DIFFERENCE WITH VOTING TYPE ####
+    """calculate the distance necessary to calcualte the happiness"""
+    def calculate_distance(self, sorted_outcome): #same for every type of vote
         distance = {}
         for i in range(self.n_voters):
             # print("voter", i+1)
@@ -40,8 +73,6 @@ class Agent(object):
             distance.setdefault(i, distance_voter)
         return distance
 
-    """ calculate the happiness of the single voter given his distance"""
-
     def calculate_happiness(self, d):
         # print("happiness",d,1 / (1 + np.abs(d)))
         return 1 / (1 + np.abs(d))
@@ -52,12 +83,15 @@ class Agent(object):
 
 def main():
     print(df.shape)
-    n_pref = df.shape[1] - 1
+    n_pref = df.shape[1] - 1 #base case is borda
     n_voters = df.shape[0]
     votes = dict(zip(string.ascii_uppercase, [0] * n_pref))
     happiness = []
+    weighted_vote = True
+    # arr = df.to_numpy()
+    # print(arr[:,1:])
 
-    TVA = Agent(n_pref, n_voters)
+    TVA = Agent(n_pref, n_voters, CONSIDERED_VOTE)
 
     ##### NON STRATEGIC VOTING OUTCOME ######
     ns_outcome = TVA.calculate_score(votes, True)
@@ -65,7 +99,9 @@ def main():
     ##### HAPPINESS #####
     distance = TVA.calculate_distance(ns_outcome)
     for d in distance:
-        happiness.append(TVA.calculate_happiness(distance[d]))
+
+        happ = TVA.calculate_happiness(d)
+        happiness.append(happ)
 
     print("##### Non strategic results""")
     print("distance", distance)
@@ -75,24 +111,11 @@ def main():
 
     print("#### strategic results ####""")
     ###### STRATEGIC VOTING #####
-    strategic_voting = {}
-
-    # voters = voters[0]
-    for i in range(n_voters):
-        voter = list(df.iloc[i,1:])
-        max_d = n_pref
-        j = 0
-        for pos,vote in enumerate(voter):
-            print(pos, vote)
-            if pos == 0 and vote == ns_outcome[0][0]:
-                # this voter choice is already the winner
-                print("this voter choice is already the winner")
-                break
+    n_set = TVA.strategic_voting()
 
     ###### OVERALL RISK OF SV ######
-    #FIXME adjust when S will be available -> remove +1
-    s=len(strategic_voting)+1
-    risk = TVA.overall_risk(s)
+
+    risk = TVA.overall_risk(n_set)
     print("the risk for this situation is:",risk)
 
     # print(vote)
