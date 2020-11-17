@@ -29,6 +29,8 @@ class Agent(object):
             for i in range(arr.shape[0]):
                 # print("ind", i+1, arr[i, j])
                 vote = arr[i, j]
+                if vote == "-":
+                    break
                 if weighted:
                     votes[vote] += (self.n_pref - j - 1)
                 else:
@@ -40,19 +42,22 @@ class Agent(object):
 
     """ calculate the happiness of the single voter given his distance"""
     #not working, do not consider it
-    def strategic_voting(self):
+    def strategic_voting_bullet(self,arr):
+        # new_pref = arr.copy()
+        only_pref = list(list(zip(*self.ns_outcome))[0]) #make a list with only the preferences, no score
+        # print("real",real_outcome)
         bullet = True
         # if bullet:
         strategic_voting = {}
         for i in range(self.n_voters):
-            voter = list(df.iloc[i, 1:])  # get the preference's voter row
-            for pos, vote in enumerate(voter):
-                # print(pos, vote)
-                if pos == 0 and vote == self.ns_outcome[0][0]:
-
-                #     print("this voter choice is already the winner")
-                    break
-                # elif cases of other votes
+            new_pref = arr.copy()
+            if new_pref[i, 0] != only_pref[0]: #skip if the first choice is already the winner
+                pass
+            else:
+                for j in range(arr.shape[1]): #set all the other preferences to a null value
+                    new_pref[i,j] = '-'
+                bullet_outcome = self.calculate_score(new_pref)
+                print("bull",bullet_outcome)
         return len(strategic_voting)
 
 
@@ -113,7 +118,7 @@ def main():
 
     print("#### strategic results ####""")
     ###### STRATEGIC VOTING #####
-    n_set = TVA.strategic_voting()
+    n_set = TVA.strategic_voting_bullet(arr)
 
     ###### OVERALL RISK OF SV ######
 
