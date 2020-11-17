@@ -13,6 +13,7 @@ class Agent(object):
         self.n_pref = n_pref
         self.n_voters = n_voters
         self.ns_outcome = {}
+        self.happiness = []
 
         if considered_vote>n_pref or considered_vote <= 0:  # solve basics cases
             considered_vote=n_pref
@@ -47,17 +48,25 @@ class Agent(object):
         only_pref = list(list(zip(*self.ns_outcome))[0]) #make a list with only the preferences, no score
         # print("real",real_outcome)
         bullet = True
-        # if bullet:
-        strategic_voting = {}
-        for i in range(self.n_voters):
-            new_pref = arr.copy()
-            if new_pref[i, 0] != only_pref[0]: #skip if the first choice is already the winner
-                pass
-            else:
-                for j in range(arr.shape[1]): #set all the other preferences to a null value
-                    new_pref[i,j] = '-'
-                bullet_outcome = self.calculate_score(new_pref)
-                print("bull",bullet_outcome)
+        if bullet:
+            strategic_voting = set()
+            for i in range(self.n_voters):
+                new_pref = arr.copy()
+                if new_pref[i, 0] == only_pref[0]: #skip if the first choice is already the winner
+                    pass
+                else:
+                    for j in range(1,arr.shape[1]): #set all the other preferences to a null value
+                        new_pref[i,j] = '-'
+                    # print(new_pref)
+                    bullet_outcome = self.calculate_score(new_pref)
+                    print("bull",bullet_outcome)
+                    distance = self.calculate_distance(arr,bullet_outcome)
+                    happiness = self.calculate_happiness(distance)
+                    if happiness[i]>self.happiness[i]: #fixme create hash from set
+                        strategic_voting.add("bull"+str(i))
+
+                    print("new happiness voter", i,new_pref[i,0],"\n", happiness)
+        print(strategic_voting)
         return len(strategic_voting)
 
 
@@ -83,9 +92,16 @@ class Agent(object):
             distance.setdefault(i, distance_voter)
         return distance
 
-    def calculate_happiness(self, d):
+    def calculate_happiness(self, distance, initial = False):
         # print("happiness",d,1 / (1 + np.abs(d)))
-        return 1 / (1 + np.abs(d))
+        happiness = []
+        for d in distance:
+            dist_value= distance[d]
+            happiness.append(1 / (1 + np.abs(dist_value)))
+        if initial == True:
+            self.happiness = happiness
+        return happiness
+
 
     def overall_risk(self, S):
         return S/self.n_voters
@@ -95,7 +111,6 @@ def main():
     print(df.shape)
     n_pref = df.shape[1] - 1 #base case is borda
     n_voters = df.shape[0]
-    happiness = []
     weighted_vote = True
     arr = df.to_numpy()[:,1:]
 
@@ -106,9 +121,8 @@ def main():
 
     ##### HAPPINESS #####
     distance = TVA.calculate_distance(arr, ns_outcome)
-    for d in distance:
-        happ = TVA.calculate_happiness(distance[d])
-        happiness.append(happ)
+    # for d in distance:
+    happiness = TVA.calculate_happiness(distance,True)
 
     print("##### Non strategic results""")
     print("distance", distance)
