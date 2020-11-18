@@ -4,48 +4,104 @@ import string
 import numpy as np
 
 df = pd.read_csv('voting_example3.csv', sep=";")
-CONSIDERED_VOTE = 8  # same number as candidates for BORDA, less for other types, Singularity = 1
-#  Vote for two = 2, Anti plurality = range(1,n_pref)
-BULLET = False
-BURYING = True
+
+BULLET       = True
+COMPROMISING = True
+BURYING      = True
 STRATEGIC_VOTING = set()
 
+PLURALITY_VOTE = 1
+VOTING_FOR_2 = 2
+VETO = 3
+BORDA = 4
+
+CONSIDERED_VOTE = BORDA
+
 class Agent(object):
-    def __init__(self, n_pref, n_voters, considered_vote):
-        self.n_pref = n_pref
+
+    def __init__(self, n_pref, n_voters, vote_type):
+        self.n_preferences = n_pref
         self.n_voters = n_voters
+        self.vote_type = vote_type
         self.ns_outcome = {}
         self.happiness = []
-        self.winner_prefs=1
+        self.considered_vote = self.nunmber_of_considered_votes(vote_type)
+        self.winner_prefs = self.considered_vote if self.vote_type != PLURALITY_VOTE and self.vote_type != BORDA else 1
 
-        if considered_vote > n_pref or considered_vote <= 0:  # solve basics cases
-            considered_vote = n_pref
-        self.considered_vote = considered_vote
-        if considered_vote!=1 and considered_vote!=n_pref:
-            self.winner_prefs = considered_vote
+
+    def nunmber_of_considered_votes(self, vote_type):
+        if vote_type == PLURALITY_VOTE:
+            return 1
+        elif vote_type == VOTING_FOR_2:
+            return 2
+        elif vote_type == VETO:
+            return self.n_preferences - 1
+        elif vote_type == BORDA:
+            return self.n_preferences
+        else: # something wrong but still BORDA
+            print("ERROR: wrong vote_type", vote_type)
+            return self.n_preferences
 
 
     """calculate winner given votes"""
+    def calculate_score(self, table, initial=False):
+        votes_result = dict(zip(string.ascii_uppercase, [0] * self.n_preferences))  # init dict to calculate outcomes from table
 
-    def calculate_score(self, arr, initial=False):  # votes is the
-        votes = dict(zip(string.ascii_uppercase, [0] * self.n_pref))  # create dict to calculate outcomes from array
-        weighted = False  # if type of vote is borda, we weigth the votes, else a vote is equal to 1
-        if self.considered_vote == self.n_pref:
-            weighted = True
-        for j in range(self.considered_vote):
-            for i in range(arr.shape[0]):
-                # print("ind", i+1, arr[i, j])
-                vote = arr[i, j]
-                if vote == "-":  # no weight, bullet case
+        for i in range(self.n_voters):
+            for j in range(self.considered_vote):  # check only the column useful for your vote_type
+                vote = table[i, j]
+                if vote == "-":  # bullet case, avoid further "-" checks
                     break
-                if weighted:
-                    votes[vote] += (self.n_pref - j - 1)
+                if self.vote_type == BORDA:  # if type of vote is BORDA, we weigth the votes from n-1 to 0, else a vote is equal to 1
+                    votes_result[vote] += (self.n_preferences - j - 1)
                 else:
-                    votes[vote] += 1
-        outcome = sorted(votes.items(), key=lambda x: x[1], reverse=True)
+                    votes_result[vote] += 1
+
+        outcome = sorted(votes_result.items(), key=lambda x: x[1], reverse=True)
+
         if initial:
             self.ns_outcome = outcome
+
         return outcome
+
+
+    """calculate the distance necessary to calcualte the happiness"""
+    def calculate_distance(self, table, outcome):  # same for every type of vote
+        distance = {}
+        for i in range(self.n_voters):
+            # print("voter", i+1)
+            max_d = self.n_preferences
+            distance_voter = 0
+            # for (info, expressed_vote) in df.iloc[i, 1:].iteritems():
+            for expressed_vote in range(table.shape[1]):
+                # print("order",expressed_vote)
+                j = max_d  # J = W
+                for index2, v in enumerate(outcome):
+                    k = self.n_preferences - index2  # calculate k from outcome
+                    if v[0] == table[i, expressed_vote]:  # look for the vote,
+                        distance_i = k - j
+                        distance_voter += distance_i * j  # sum of distances of all alternatives * weights:
+                        break
+                max_d -= 1  # decrease the j while iterate over alternative
+            distance.setdefault(i, distance_voter)
+        return distance
+
+
+    """ calculate the happiness of the single voter given his distance"""
+    def calculate_happiness(self, distance, initial=False):
+        # print("happiness",d,1 / (1 + np.abs(d)))
+        happiness = []
+        for d in distance:
+            dist_value = distance[d]
+            happiness.append(1 / (1 + np.abs(dist_value)))
+        if initial == True:
+            self.happiness = happiness
+        return happiness
+
+
+    def overall_risk(self, S):
+        return S / self.n_voters
+
 
     """ calculate and evaluate new outcome from strategic voting"""
     def calculate_new_strategic(self, new_pref, method, voter):
@@ -59,6 +115,7 @@ class Agent(object):
             STRATEGIC_VOTING.add(str(method)+str(voter))
             print(method,"happiness voter", voter, "\n old", self.happiness, " \n new",
                   happiness)
+
 
     """ calculate the happiness of the single voter given his distance"""
     # not working, do not consider it
@@ -91,11 +148,11 @@ class Agent(object):
                     if new_pref[i, j] == only_pref[0]: #skip if the winner is in my choices
                         winner = True
                 if not winner:
-                    for j in range(self.winner_prefs, self.n_pref-1):
+                    for j in range(self.winner_prefs, self.n_preferences-1):
                         new_pref = arr.copy()
                         if new_pref[i,j] == only_pref[0]:
                             #try to lower the winner vote and calculate everything again
-                            for next in (j+1,self.n_pref-1):
+                            for next in (j+1,self.n_preferences-1):
                                 new_pref = arr.copy()
                                 print(new_pref[i])
                                 temp = new_pref[i,j]
@@ -111,85 +168,51 @@ class Agent(object):
 
         #### NO DIFFERENCE WITH VOTING TYPE ####
 
-    """calculate the distance necessary to calculate the happiness"""
 
-    def calculate_distance(self, arr, sorted_outcome):  # same for every type of vote
-        distance = {}
-        for i in range(self.n_voters):
-            # print("voter", i+1)
-            max_d = self.n_pref
-            distance_voter = 0
-            # for (info, expressed_vote) in df.iloc[i, 1:].iteritems():
-            for expressed_vote in range(arr.shape[1]):
-                # print("order",expressed_vote)
-                j = max_d  # J = W
-                for index2, v in enumerate(sorted_outcome):
-                    k = self.n_pref - index2  # calculate k from outcome
-                    if v[0] == arr[i, expressed_vote]:  # look for the vote,
-                        distance_i = k - j
-                        distance_voter += distance_i * j  # sum of distances of all alternatives * weights:
-                        break
-                max_d -= 1  # decrease the j while iterate over alternative
-            distance.setdefault(i, distance_voter)
-        return distance
-
-    def calculate_happiness(self, distance, initial=False):
-        # print("happiness",d,1 / (1 + np.abs(d)))
-        happiness = []
-        for d in distance:
-            dist_value = distance[d]
-            happiness.append(1 / (1 + np.abs(dist_value)))
-        if initial == True:
-            self.happiness = happiness
-        return happiness
-
-    def overall_risk(self, S):
-        return S / self.n_voters
 
 
 def main():
-    print(df.shape)
-    n_pref = df.shape[1] - 1  # column number without considering first number
-    n_voters = df.shape[0]
-    weighted_vote = True
-    arr = df.to_numpy()[:, 1:]
+    df_array = df.to_numpy()[:, 1:] # not considering the first column of voters's IDs
 
-    TVA = Agent(n_pref, n_voters, CONSIDERED_VOTE)
+    n_voters, n_preferences = df_array.shape
+
+    TVA = Agent(n_preferences, n_voters, CONSIDERED_VOTE)
 
     ##### NON STRATEGIC VOTING OUTCOME ######
-    ns_outcome = TVA.calculate_score(arr, True)
+    ns_outcome = TVA.calculate_score(df_array, True)
 
-    ##### HAPPINESS #####
-    distance = TVA.calculate_distance(arr, ns_outcome)
-    # for d in distance:
+    #####  DISTANCE & HAPPINESS  #####
+    distance = TVA.calculate_distance(df_array, ns_outcome)
     happiness = TVA.calculate_happiness(distance, True)
 
-    print("##### Non strategic results""")
-    print("distance", distance)
-    print("outcome", ns_outcome)
-    print("election winner is", ns_outcome[0])
-    print("happiness", happiness)
+    print("\n\n#####  NON STRATEGIC RESULTS  #####""")
+    print("distance:        ", distance)
+    print("outcome:         ", ns_outcome)
+    print("election winner: ", ns_outcome[0])
+    print("happiness:       ", happiness)
 
-    print("#### strategic results ####""")
+
+
+    print("\n\n####  STRATEGIC RESULTS  ####""")
     ###### STRATEGIC VOTING #####
-    n_set = TVA.strategic_voting_bullet(arr)
+    n_set = TVA.strategic_voting_bullet(df_array)
 
     ###### OVERALL RISK OF SV ######
-
     risk = TVA.overall_risk(n_set)
     print("the risk for this situation is:", risk)
-
-    # print(vote)
 
 
 if __name__ == "__main__":
     main()
 
-# expeceted OUTPUT
-#  - non strategic voting outcome O
-#  - Overall voter happiness
-#  - Possibly empty set of strategic voting option
-#     - v new list of strategic voting option,
-#     - O voting results applying v
-#     - H resulting happiness
-#  - risk
+"""
+expected OUTPUT
+- non strategic voting outcome O
+- Overall voter happiness
+- Possibly empty set of strategic voting option
+   - v new list of strategic voting option,
+   - O voting results applying v
+   - H resulting happiness
+- Risk
+"""
+
