@@ -4,8 +4,11 @@ import string
 import numpy as np
 
 df = pd.read_csv('voting_example3.csv', sep=";")
-CONSIDERED_VOTE = 6  #  same number as candidates for BORDA, less for other types, Singularity = 1
+CONSIDERED_VOTE = 100  #  same number as candidates for BORDA, less for other types, Singularity = 1
                      #  Vote for two = 2, Anti plurality = range(1,n_pref)
+BULLET = True
+COMPROMISING = True
+
 
 
 class Agent(object):
@@ -30,7 +33,7 @@ class Agent(object):
             for i in range(arr.shape[0]):
                 # print("ind", i+1, arr[i, j])
                 vote = arr[i, j]
-                if vote == "-":
+                if vote == "-": #no weight, bullet case
                     break
                 if weighted:
                     votes[vote] += (self.n_pref - j - 1)
@@ -47,25 +50,46 @@ class Agent(object):
         # new_pref = arr.copy()
         only_pref = list(list(zip(*self.ns_outcome))[0]) #make a list with only the preferences, no score
         # print("real",real_outcome)
-        bullet = True
-        if bullet:
-            strategic_voting = set()
+        strategic_voting = set()
+        if BULLET and CONSIDERED_VOTE > 1:
             for i in range(self.n_voters):
                 new_pref = arr.copy()
                 if new_pref[i, 0] == only_pref[0]: #skip if the first choice is already the winner
                     pass
                 else:
-                    for j in range(1,arr.shape[1]): #set all the other preferences to a null value
-                        new_pref[i,j] = '-'
-                    # print(new_pref)
-                    bullet_outcome = self.calculate_score(new_pref)
-                    print("bull",bullet_outcome)
-                    distance = self.calculate_distance(arr,bullet_outcome)
-                    happiness = self.calculate_happiness(distance)
-                    if happiness[i]>self.happiness[i]: #fixme create hash from set
-                        strategic_voting.add("bull"+str(i))
+                        #for now just exclude the other votes except the first one
+                        print("######## BULLET VOTING ########") #don't consider when my second chance can win
 
-                    print("new happiness voter", i,new_pref[i,0],"\n", happiness)
+                        for j in range(1,arr.shape[1]): #set all the other preferences to a null value
+                            new_pref[i,j] = '-'
+                        # print(new_pref)
+                        bullet_outcome = self.calculate_score(new_pref)
+                        print("##### new outcome with bullet #### \n",bullet_outcome)
+                        distance = self.calculate_distance(new_pref,bullet_outcome) #todo #distance considering the '-'?
+                        happiness = self.calculate_happiness(distance)
+
+                        if happiness[i]>self.happiness[i]: #fixme create hash from set
+                            print("old value and new", happiness[i], self.happiness[i])
+                            strategic_voting.add("bull"+str(i))
+                            print("bullet happiness voter", i,new_pref[i,0],"\n old", self.happiness, " \n new", happiness)
+        # if COMPROMISING:
+        #     print("######## COMPROSING VOTING ########")
+        #     for i in range(self.n_voters):
+        #         new_pref = arr.copy()
+        #         winner = False
+        #         for j in range(CONSIDERED_VOTE):
+        #             if new_pref[i, j] == only_pref[0]: #skip if the winner is in my choices
+        #                 winner = True
+        #         if not winner:
+
+
+
+
+
+
+
+
+
         print(strategic_voting)
         return len(strategic_voting)
 
@@ -84,7 +108,7 @@ class Agent(object):
                 j = max_d  # J = W
                 for index2, v in enumerate(sorted_outcome):
                     k = self.n_pref - index2  # calculate k from outcome
-                    if v[0] == arr[i, expressed_vote]:  # look for the vote
+                    if v[0] == arr[i, expressed_vote]:  # look for the vote,
                         distance_i = k - j
                         distance_voter += distance_i * j  # sum of distances of all alternatives * weights:
                         break
@@ -109,7 +133,7 @@ class Agent(object):
 
 def main():
     print(df.shape)
-    n_pref = df.shape[1] - 1 #base case is borda
+    n_pref = df.shape[1] - 1 #column number without considering first number
     n_voters = df.shape[0]
     weighted_vote = True
     arr = df.to_numpy()[:,1:]
