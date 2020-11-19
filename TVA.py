@@ -5,6 +5,7 @@ import numpy as np
 from numpy import random
 import copy
 
+
 ############  GLOBAL PARAMS #################
 PLURALITY_VOTE = 1
 VOTING_FOR_2 = 2
@@ -12,14 +13,13 @@ VETO = 3
 BORDA = 4
 
 
-
 ############  CONFIG #################
 BULLET       = True
 COMPROMISING = True
 BURYING      = True
-LONG_RUN     = False # if you want 100 trial of random tables, otherwise load the csv file
+LONG_RUN     = False  # if you want 100 trial of random tables, otherwise load the csv file
 CONSIDERED_VOTE = BORDA
-
+DF_NAME = 'voting_example3.csv'
 
 
 class Agent(object):
@@ -36,7 +36,6 @@ class Agent(object):
         self.winner_prefs = self.considered_vote if self.vote_type != PLURALITY_VOTE and self.vote_type != BORDA else 1
 
 
-
     def nunmber_of_considered_votes(self, vote_type):
         if vote_type == PLURALITY_VOTE:
             return 1
@@ -48,11 +47,12 @@ class Agent(object):
             return self.n_preferences
         else: # something wrong but still BORDA
             print("ERROR: wrong vote_type", vote_type)
+            print("ERROR: by default is set to BORDA")
             return self.n_preferences
 
 
     """calculate winner given votes"""
-    def calculate_score(self, table, initial=False):
+    def calculate_outcome(self, table, initial=False):
         votes_result = dict(zip(string.ascii_uppercase, [0] * self.n_preferences))  # init dict to calculate outcomes from table
 
         for i in range(self.n_voters):
@@ -76,27 +76,32 @@ class Agent(object):
     """calculate the distance necessary to calculate the happiness"""
     def calculate_distance(self, table, outcome):  # same for every type of vote
         distance = {}
+
         for i in range(self.n_voters):
-            # print("voter", i+1)
-            max_d = self.n_preferences
-            distance_voter = 0
-            # for (info, expressed_vote) in df.iloc[i, 1:].iteritems():
-            for expressed_vote in range(self.n_preferences):
-                # print("order",expressed_vote)
-                j = max_d  # J = W
+            print("table   ", table[i])
+            print("outcome ", np.array([x[0] for x in outcome]))
+
+            distance_value = 0
+            Wj = self.n_preferences # max value of the weights
+
+            for j in range(self.n_preferences):
                 for index2, v in enumerate(outcome):
                     k = self.n_preferences - index2  # calculate k from outcome
-                    if v[0] == table[i, expressed_vote]:  # look for the vote,
-                        distance_i = k - j
-                        distance_voter += distance_i * j  # sum of distances of all alternatives * weights:
+                    if v[0] == table[i, j]:  # look for the vote,
+                        distance_j = k - Wj
+                        print(distance_j)
+                        distance_value += distance_j * Wj  # sum of distances of all alternatives * weights:
                         break
-                max_d -= 1  # decrease the j while iterate over alternative
-            distance.setdefault(i, distance_voter)
+
+                Wj -= 1  # decrease the current_w while iterate over alternative -> Wj
+
+            distance.setdefault(i, distance_value)
+
         return distance
 
 
     """ calculate the happiness of the single voter given his distance"""
-    def calculate_happiness(self, distance, initial=False):
+    def calculate_happiness(self, distance, initial_ns_voting=False):
         # print("happiness",d,1 / (1 + np.abs(d)))
         happiness = []
 
@@ -105,7 +110,8 @@ class Agent(object):
             happ=round(1 / (1 + np.abs(dist_value)),5)
             happiness.append(happ)
 
-        if initial == True:
+
+        if initial_ns_voting == True:
             self.happiness = happiness
 
         return happiness
@@ -118,18 +124,18 @@ class Agent(object):
     """ calculate and evaluate new outcome from strategic voting"""
     def calculate_new_strategic(self, new_pref, method, voter):
         # print("new_pref", voter , new_pref)
-        strategic_outcome = self.calculate_score(new_pref)
-        print("##### new outcome with",method," #### \n", strategic_outcome)
+        strategic_outcome = self.calculate_outcome(new_pref)
+        print("##### new outcome with", method, " #### \n", strategic_outcome)
         distance = self.calculate_distance(self.ns_preferences, strategic_outcome)
         happiness = self.calculate_happiness(distance)
         if happiness[voter] > self.happiness[voter]:
             diff = happiness[voter]-self.happiness[voter]
-            print("new value and old", happiness[voter], self.happiness[voter], "diff", round(diff,5))
+            print("new value and old", happiness[voter], self.happiness[voter], "diff", round(diff, 5))
             set_str = method+"-"+ str(voter+1)#todo add the method string-> done
-            for i,z in enumerate(new_pref[voter]): #create a univoque string for the set
+            for i, z in enumerate(new_pref[voter]): #create a univoque string for the set
                 set_str += z
             self.strategic_voting.add(set_str)
-            print(method,"happiness voter", voter, "\n old", self.happiness, " \n new",
+            print(method, "happiness voter", voter, "\n old", self.happiness, " \n new",
                   happiness, "\n\n\n")
         else:
             print("lower or same happiness")
@@ -141,7 +147,7 @@ class Agent(object):
         # new_pref = copy.deepcopy(table)
         only_pref = list(list(zip(*self.ns_outcome))[0])  # make a list with only the preferences, no score
         winner_vote = only_pref[0]
-        print("win",winner_vote)
+        print("win", winner_vote)
         # print("real",real_outcome)
 
         # working and considers all the cases, also changing my first preference
@@ -158,9 +164,9 @@ class Agent(object):
                             pos_winning_pref = pos
                             break
                     # put all the preferences before the winning one on top and vote only for that one.
-                    for other_vote in range(0,pos_winning_pref):
+                    for other_vote in range(0, pos_winning_pref):
                         new_pref = copy.deepcopy(table)
-                        new_pref[i, 0]= new_pref[i, other_vote]
+                        new_pref[i, 0] = new_pref[i, other_vote]
                         # set all the other preferences to a null value
                         for j in range(1, table.shape[1]):
                             new_pref[i, j] = '-'
@@ -200,7 +206,7 @@ class Agent(object):
                         temp = new_pref[i, cur_win_pos]
                         new_pref[i, cur_win_pos] = new_pref[i, next]
                         new_pref[i, next] = temp
-                        print("new_pref",new_pref[i])
+                        print("new_pref", new_pref[i])
 
                         self.calculate_new_strategic(new_pref, "BURYING", i)
 
@@ -244,6 +250,7 @@ class Agent(object):
         #### NO DIFFERENCE WITH VOTING TYPE ####
 
 
+
 def initialize_random_tables(number, n_voters, n_preferences):  # MAX 26 preferences
     if n_preferences > 26:  # we use only the A-Z chars
         n_preferences = 26
@@ -262,30 +269,47 @@ def initialize_random_tables(number, n_voters, n_preferences):  # MAX 26 prefere
         table_list.append(np.array(voters_table))
     return np.array(table_list)
 
+
 def main():
     if LONG_RUN:
         df = initialize_random_tables(100, 6, 5)
     else:
-        df = pd.read_csv('voting_example3.csv', sep=";").to_numpy()[:, 1:] # not considering the first column of voters's IDs
+        df = pd.read_csv(DF_NAME, sep=";").to_numpy()[:, 1:] # not considering the first column of voters's IDs
         df = np.expand_dims(df, axis=0)
 
     n_test, n_voters, n_preferences = df.shape
+
+    # CHECK DF is well-formed
+    error = False
+    for n, table in enumerate(df):
+        check_test = list(string.ascii_uppercase)[:n_preferences]
+        for i, row in enumerate(table):
+            for j, val in enumerate(row):
+                if not val in check_test:
+                    error = True
+                    print("ERROR: Nan value in table(",(n+1),"), row(",(i+1),") and element position(",(j+1),")")
+            if len(row) != len(set(row)):
+                error = True
+                print("ERROR: Double value in table(", (n + 1), "), row(", (i + 1), ")")
+
+    if error: # to print every error in one time
+        return 1
 
     for n, table in enumerate(df):
         print("\n\n##########  TEST ", n, "   ##########")
         TVA = Agent(n_preferences, n_voters, CONSIDERED_VOTE,table)
 
         ##### NON STRATEGIC VOTING OUTCOME ######
-        ns_outcome = TVA.calculate_score(table, True)
+        non_strategic_outcome = TVA.calculate_outcome(table, True)
 
         #####  DISTANCE & HAPPINESS  #####
-        distance = TVA.calculate_distance(table, ns_outcome)
+        distance = TVA.calculate_distance(table, non_strategic_outcome)
         happiness = TVA.calculate_happiness(distance, True)
 
         print("\n#####  NON STRATEGIC RESULTS  #####""")
         print("distance:        ", distance)
-        print("outcome:         ", ns_outcome)
-        print("election winner: ", ns_outcome[0])
+        print("outcome:         ", non_strategic_outcome)
+        print("election winner: ", non_strategic_outcome[0])
         print("happiness:       ", happiness)
 
 
@@ -293,28 +317,26 @@ def main():
         print("\n####  STRATEGIC RESULTS  ####""")
         ###### STRATEGIC VOTING #####
         n_set = TVA.strategic_voting_bullet(table)
+
         ###### OVERALL RISK OF SV ######
         risk = TVA.overall_risk(n_set)
         print("the risk for this situation is:", risk)
 
 
 if __name__ == "__main__":
+    """
+    expected OUTPUT
+    - non strategic voting outcome O
+    - Overall voter happiness
+    - Possibly empty set of strategic voting option
+       - v new list of strategic voting option,
+       - O voting results applying v
+       - H resulting happiness
+       - z briefly motivation
+    - Risk
+    """
     main()
-
-"""
-expected OUTPUT
-- non strategic voting outcome O
-- Overall voter happiness
-- Possibly empty set of strategic voting option
-   - v new list of strategic voting option,
-   - O voting results applying v
-   - H resulting happiness
-   - z briefly motivation
-- Risk
-"""
 
 #todo consider initial preferences while calculating happiness -> done
 #todo avg of tests
 #todo save results on file
-#
-
