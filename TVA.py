@@ -3,13 +3,14 @@ import pandas as pd
 import string
 import numpy as np
 from numpy import random
+import copy
 
 ############  GLOBAL PARAMS #################
 PLURALITY_VOTE = 1
 VOTING_FOR_2 = 2
 VETO = 3
 BORDA = 4
-STRATEGIC_VOTING = set()
+
 
 
 ############  CONFIG #################
@@ -29,6 +30,7 @@ class Agent(object):
         self.vote_type = vote_type
         self.ns_outcome = {}
         self.happiness = []
+        self.strategic_voting = set()
         self.considered_vote = self.nunmber_of_considered_votes(vote_type)
         self.winner_prefs = self.considered_vote if self.vote_type != PLURALITY_VOTE and self.vote_type != BORDA else 1
 
@@ -124,7 +126,7 @@ class Agent(object):
             set_str = str(voter)
             for i,z in enumerate(new_pref[voter]): #create a univoque string for the set
                 set_str += z
-            STRATEGIC_VOTING.add(set_str)
+            self.strategic_voting.add(set_str)
             print(method,"happiness voter", voter, "\n old", self.happiness, " \n new",
                   happiness, "\n\n\n")
         else:
@@ -133,8 +135,8 @@ class Agent(object):
 
     """ calculate the happiness of the single voter given his distance"""
     # not working, do not consider it
-    def strategic_voting_bullet(self, arr): #todo consider winner case
-        # new_pref = arr.copy()
+    def strategic_voting_bullet(self, table): #todo consider winner case
+        # new_pref = copy.deepcopy(table)
         only_pref = list(list(zip(*self.ns_outcome))[0])  # make a list with only the preferences, no score
         # print("real",real_outcome)
 
@@ -142,7 +144,7 @@ class Agent(object):
         if BULLET and CONSIDERED_VOTE > 1:
             print("######## BULLET VOTING ########\n\n")
             for i in range(self.n_voters):
-                new_pref = arr.copy()
+                new_pref = copy.deepcopy(table)
                 if new_pref[i, 0] == only_pref[0]:  # skip if the first choice is already the winner
                     pass
                 else:
@@ -153,16 +155,16 @@ class Agent(object):
                             break
                     # put all the preferences before the winning one on top and vote only for that one.
                     for other_vote in range(0,pos_winning_pref):
-                        new_pref = arr.copy()
+                        new_pref = copy.deepcopy(table)
                         new_pref[i,0]= new_pref[i,other_vote]
                         # set all the other preferences to a null value
-                        for j in range(1, arr.shape[1]):
+                        for j in range(1, table.shape[1]):
                             new_pref[i, j] = '-'
                         # print(new_pref)
                         self.calculate_new_strategic(new_pref,"BULLET",i)
                         # for iterator in range(0,pos_winning_pref):
 
-                    for j in range(1, arr.shape[1]):  # set all the other preferences to a null value
+                    for j in range(1, table.shape[1]):  # set all the other preferences to a null value
                         new_pref[i, j] = '-'
                     # print(new_pref)
                     self.calculate_new_strategic(new_pref,"BULLET",i)
@@ -171,7 +173,7 @@ class Agent(object):
         if BURYING: #fixme work in progress
             print("######## BURYING VOTING ########")
             for i in range(self.n_voters):
-                new_pref = arr.copy()
+                new_pref = copy.deepcopy(table)
             winner = False
             for j in range(self.winner_prefs):
                 # skip if the winner is in my choices
@@ -179,11 +181,11 @@ class Agent(object):
                     winner = True
             if not winner:
                 for j in range(self.winner_prefs, self.n_preferences-1):
-                    new_pref = arr.copy()
+                    new_pref = copy.deepcopy(table)
                     if new_pref[i,j] == only_pref[0]:
                         #try to lower the winner vote and calculate everything again
                         for next in (j+1,self.n_preferences-1):
-                            new_pref = arr.copy()
+                            new_pref = copy.deepcopy(table)
                             print(new_pref[i])
                             temp = new_pref[i,j]
                             print(next)
@@ -191,8 +193,8 @@ class Agent(object):
                             new_pref[i, next] = temp
                             print(new_pref[i],"voter",i, " swap",j, next,"\n\n\n")
                             self.calculate_new_strategic(new_pref, "BURYING", i)
-        print(STRATEGIC_VOTING)
-        return len(STRATEGIC_VOTING)
+        print(self.strategic_voting)
+        return len(self.strategic_voting)
 
         #### NO DIFFERENCE WITH VOTING TYPE ####
 
