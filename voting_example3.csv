@@ -1,7 +1,7 @@
 voter;pref_1;pref_2;pref_3;pref_4;pref_5
 1;C;E;D;B;A
-2;A;D;C;B;E
-3;D;E;C;B;A
+2;A;D;E;C;B
+3;E;C;D;B;A
 4;A;D;C;B;E
 5;A;E;C;B;D
 6;A;E;C;B;D

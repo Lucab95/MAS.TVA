@@ -14,10 +14,10 @@ BORDA = 4
 
 
 ############  CONFIG #################
-BULLET       = True
+BULLET       = False
 COMPROMISING = True
 BURYING      = True
-LONG_RUN     = True # if you want 100 trial of random tables, otherwise load the csv file
+LONG_RUN     = False # if you want 100 trial of random tables, otherwise load the csv file
 CONSIDERED_VOTE = BORDA
 
 
@@ -120,7 +120,7 @@ class Agent(object):
         print("##### new outcome with",method," #### \n", strategic_outcome)
         distance = self.calculate_distance(new_pref, strategic_outcome)
         happiness = self.calculate_happiness(distance)
-        if happiness[voter] > self.happiness[voter]:  # fixme create hash from set
+        if happiness[voter] >= self.happiness[voter]:  # fixme create hash from set
             diff = happiness[voter]-self.happiness[voter]
             print("new value and old", happiness[voter], self.happiness[voter], "diff", round(diff,5))
             set_str = str(voter)
@@ -138,25 +138,27 @@ class Agent(object):
     def strategic_voting_bullet(self, table): #todo consider winner case
         # new_pref = copy.deepcopy(table)
         only_pref = list(list(zip(*self.ns_outcome))[0])  # make a list with only the preferences, no score
+        winner_vote = only_pref[0]
+        print("win",winner_vote)
         # print("real",real_outcome)
 
-        #working and considers all the cases
+        # working and considers all the cases, also changing my first preference
         if BULLET and CONSIDERED_VOTE > 1:
             print("######## BULLET VOTING ########\n\n")
             for i in range(self.n_voters):
                 new_pref = copy.deepcopy(table)
-                if new_pref[i, 0] == only_pref[0]:  # skip if the first choice is already the winner
+                if new_pref[i, 0] == winner_vote:  # skip if the first choice is already the winner
                     pass
                 else:
                     pos_winning_pref = 1
                     for pos in range(1, len(new_pref[i])):
-                        if new_pref[i][pos] == only_pref[0]:
+                        if new_pref[i][pos] == winner_vote:
                             pos_winning_pref = pos
                             break
                     # put all the preferences before the winning one on top and vote only for that one.
                     for other_vote in range(0,pos_winning_pref):
                         new_pref = copy.deepcopy(table)
-                        new_pref[i,0]= new_pref[i,other_vote]
+                        new_pref[i, 0]= new_pref[i, other_vote]
                         # set all the other preferences to a null value
                         for j in range(1, table.shape[1]):
                             new_pref[i, j] = '-'
@@ -169,30 +171,51 @@ class Agent(object):
                     # print(new_pref)
                     self.calculate_new_strategic(new_pref,"BULLET",i)
 
-
-        if BURYING: #fixme work in progress
+        # the logic here is that we don't change our preferences.
+        if BURYING:
+            #slide the winner vote to all the next pos and for each calculate the outcome
             print("######## BURYING VOTING ########")
             for i in range(self.n_voters):
                 new_pref = copy.deepcopy(table)
-            winner = False
-            for j in range(self.winner_prefs):
-                # skip if the winner is in my choices
-                if new_pref[i, j] == only_pref[0]:
-                    winner = True
-            if not winner:
-                for j in range(self.winner_prefs, self.n_preferences-1):
-                    new_pref = copy.deepcopy(table)
-                    if new_pref[i,j] == only_pref[0]:
-                        #try to lower the winner vote and calculate everything again
-                        for next in (j+1,self.n_preferences-1):
-                            new_pref = copy.deepcopy(table)
-                            print(new_pref[i])
-                            temp = new_pref[i,j]
-                            print(next)
-                            new_pref[i,j] = new_pref[i,next]
-                            new_pref[i, next] = temp
-                            print(new_pref[i],"voter",i, " swap",j, next,"\n\n\n")
-                            self.calculate_new_strategic(new_pref, "BURYING", i)
+                winner = False
+                for j in range(self.winner_prefs):
+                    # skip if the winner is in my n choices -> related to the voting scheme
+                    if new_pref[i, j] == winner_vote:
+                        winner = True
+                if not winner:
+                    pos_winning_pref = self.winner_prefs
+                    new_pref = copy.deepcopy(table)  # do another copy to avoid problem while trying diff pos
+                    for pos in range(self.winner_prefs, len(new_pref[i])+1):  #look for the winning vote position
+                        if new_pref[i][pos] == winner_vote:
+                            pos_winning_pref = pos
+                            # print("length", len(new_pref[i]),pos_winning_pref)
+                            break
+                    for cur_win_pos in range(pos_winning_pref,len(new_pref[i])-1):
+                        next = cur_win_pos+1
+                        # print("entra?",cur_win_pos,new_pref[i][cur_win_pos],new_pref[i][next])
+                        print("old_pref", new_pref[i])
+                        temp = new_pref[i, cur_win_pos]
+                        new_pref[i, cur_win_pos] = new_pref[i, next]
+                        new_pref[i, next] = temp
+                        print("new_pref",new_pref[i])
+                        self.calculate_new_strategic(new_pref, "BURYING", i)
+                        # x = np.append(x,winner_vote)
+                        # print(x)
+
+                    # for j in range(self.winner_prefs, self.n_preferences-1):
+                    #     new_pref = copy.deepcopy(table)
+                    #     if new_pref[i,j] == only_pref[0]:
+                    #         #try to lower the winner vote and calculate everything again
+                    #         for next in (j+1,self.n_preferences-1):
+                    #             new_pref = copy.deepcopy(table)
+                    #             print(new_pref[i])
+                    #             temp = new_pref[i,j]
+                    #             print(next)
+                    #             new_pref[i,j] = new_pref[i,next]
+                    #             new_pref[i, next] = temp
+                    #             print(new_pref[i],"voter",i, " swap",j, next,"\n\n\n")
+                    #             self.calculate_new_strategic(new_pref, "BURYING", i)
+
         print(self.strategic_voting)
         return len(self.strategic_voting)
 
@@ -200,9 +223,9 @@ class Agent(object):
 
 
 def initialize_random_tables(number, n_voters, n_preferences):  # MAX 26 preferences
-    if n_preferences > 26:  # we want use only the A-Z chars
+    if n_preferences > 26:  # we use only the A-Z chars
         n_preferences = 26
-    elif n_preferences < 1:
+    elif n_preferences < 1: # at least 1
         n_preferences = 1
 
     random.seed(1)
