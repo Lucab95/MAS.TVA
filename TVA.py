@@ -16,7 +16,7 @@ BORDA = 4
 ############  CONFIG #################
 BULLET       = False
 COMPROMISING = True
-BURYING      = True
+BURYING      = False
 LONG_RUN     = False # if you want 100 trial of random tables, otherwise load the csv file
 CONSIDERED_VOTE = BORDA
 
@@ -71,7 +71,7 @@ class Agent(object):
         return outcome
 
 
-    """calculate the distance necessary to calcualte the happiness"""
+    """calculate the distance necessary to calculate the happiness"""
     def calculate_distance(self, table, outcome):  # same for every type of vote
         distance = {}
         for i in range(self.n_voters):
@@ -185,7 +185,7 @@ class Agent(object):
                 if not winner:
                     pos_winning_pref = self.winner_prefs
                     new_pref = copy.deepcopy(table)  # do another copy to avoid problem while trying diff pos
-                    for pos in range(self.winner_prefs, len(new_pref[i])+1):  #look for the winning vote position
+                    for pos in range(self.winner_prefs, len(new_pref[i])):  #look for the winning vote position
                         if new_pref[i][pos] == winner_vote:
                             pos_winning_pref = pos
                             # print("length", len(new_pref[i]),pos_winning_pref)
@@ -199,22 +199,38 @@ class Agent(object):
                         new_pref[i, next] = temp
                         print("new_pref",new_pref[i])
                         self.calculate_new_strategic(new_pref, "BURYING", i)
-                        # x = np.append(x,winner_vote)
-                        # print(x)
 
-                    # for j in range(self.winner_prefs, self.n_preferences-1):
-                    #     new_pref = copy.deepcopy(table)
-                    #     if new_pref[i,j] == only_pref[0]:
-                    #         #try to lower the winner vote and calculate everything again
-                    #         for next in (j+1,self.n_preferences-1):
-                    #             new_pref = copy.deepcopy(table)
-                    #             print(new_pref[i])
-                    #             temp = new_pref[i,j]
-                    #             print(next)
-                    #             new_pref[i,j] = new_pref[i,next]
-                    #             new_pref[i, next] = temp
-                    #             print(new_pref[i],"voter",i, " swap",j, next,"\n\n\n")
-                    #             self.calculate_new_strategic(new_pref, "BURYING", i)
+        if COMPROMISING:
+            #slide the winner vote to all the next pos and for each calculate the outcome
+            print("######## COMPROSING VOTING ########")
+            for i in range(self.n_voters):
+                new_pref = copy.deepcopy(table)
+                winner = False
+                for j in range(self.winner_prefs):
+                    # skip if the winner is in my n choices -> related to the voting scheme
+                    if new_pref[i, j] == winner_vote:
+                        winner = True
+                if not winner:
+                    pos_winning_pref = self.winner_prefs
+                    new_pref = copy.deepcopy(table)  # do another copy to avoid problem while trying diff pos
+                    for pos in range(self.winner_prefs, len(new_pref[i])):  #look for the winning vote position
+                        if new_pref[i][pos] == winner_vote:
+                            # print("length", len(new_pref[i]),pos_winning_pref)
+                            break
+                    for cur_win_pos in range(len(new_pref[i])-1, 0, -1):
+                        if cur_win_pos==pos:
+                            print("voter pass",i,cur_win_pos)
+                            pass
+                        else:
+                            print("voter not pass", i, cur_win_pos)
+                            prev = cur_win_pos-1
+                            # print("entra?",cur_win_pos,new_pref[i][cur_win_pos],new_pref[i][next])
+                            print("old_pref", new_pref[i])
+                            temp = new_pref[i, cur_win_pos]
+                            new_pref[i, cur_win_pos] = new_pref[i, prev]
+                            new_pref[i, prev] = temp
+                            print("new_pref",new_pref[i])
+                            self.calculate_new_strategic(new_pref, "COMPROMISING", i)
 
         print(self.strategic_voting)
         return len(self.strategic_voting)
