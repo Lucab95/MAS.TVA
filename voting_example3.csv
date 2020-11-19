@@ -1,7 +1,8 @@
-voter;pref_1;pref_2;pref_3;pref_4
-1;C;A;B;D
-2;A;B;C;D
-3;B;A;C;D
-4;A;D;C;B
-5;A;D;C;B
-6;A;D;C;B
+voter;pref_1;pref_2;pref_3;pref_4;pref_5
+1;C;E;D;B;A
+2;A;D;C;B;E
+3;D;E;C;B;A
+4;A;D;C;B;E
+5;A;E;C;B;D
+6;A;E;C;B;D
+7;C;E;A;B;D

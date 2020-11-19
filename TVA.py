@@ -98,7 +98,8 @@ class Agent(object):
 
         for d in distance:
             dist_value = distance[d]
-            happiness.append(1 / (1 + np.abs(dist_value)))
+            happ=round(1 / (1 + np.abs(dist_value)),5)
+            happiness.append(happ)
 
         if initial == True:
             self.happiness = happiness
@@ -114,13 +115,20 @@ class Agent(object):
     def calculate_new_strategic(self, new_pref, method, voter):
         # print("new_pref", voter , new_pref)
         strategic_outcome = self.calculate_score(new_pref)
-        print("##### new outcome with,", method, " #### \n", strategic_outcome)
-        distance = self.calculate_distance(new_pref, strategic_outcome)  # todo #distance considering the '-'?
+        print("##### new outcome with",method," #### \n", strategic_outcome)
+        distance = self.calculate_distance(new_pref, strategic_outcome)
         happiness = self.calculate_happiness(distance)
         if happiness[voter] > self.happiness[voter]:  # fixme create hash from set
-            print("old value and new", happiness[voter], self.happiness[voter])
-            STRATEGIC_VOTING.add(str(method)+str(voter))
-            print(method, "happiness voter", voter, "\n old", self.happiness, " \n new", happiness)
+            diff = happiness[voter]-self.happiness[voter]
+            print("new value and old", happiness[voter], self.happiness[voter], "diff", round(diff,5))
+            set_str = str(voter)
+            for i,z in enumerate(new_pref[voter]): #create a univoque string for the set
+                set_str += z
+            STRATEGIC_VOTING.add(set_str)
+            print(method,"happiness voter", voter, "\n old", self.happiness, " \n new",
+                  happiness, "\n\n\n")
+        else:
+            print("lower or same happiness")
 
 
     """ calculate the happiness of the single voter given his distance"""
@@ -130,45 +138,59 @@ class Agent(object):
         only_pref = list(list(zip(*self.ns_outcome))[0])  # make a list with only the preferences, no score
         # print("real",real_outcome)
 
+        #working and considers all the cases
         if BULLET and CONSIDERED_VOTE > 1:
+            print("######## BULLET VOTING ########\n\n")
             for i in range(self.n_voters):
                 new_pref = arr.copy()
                 if new_pref[i, 0] == only_pref[0]:  # skip if the first choice is already the winner
-                                                    #todo consider more than just 1 pref?
                     pass
                 else:
-                    # for now just exclude the other votes except the first one, no swap votes
-                    print("######## BULLET VOTING ########")  # don't consider when my second chance can win
+                    pos_winning_pref = 1
+                    for pos in range(1, len(new_pref[i])):
+                        if new_pref[i][pos] == only_pref[0]:
+                            pos_winning_pref = pos
+                            break
+                    # put all the preferences before the winning one on top and vote only for that one.
+                    for other_vote in range(0,pos_winning_pref):
+                        new_pref = arr.copy()
+                        new_pref[i,0]= new_pref[i,other_vote]
+                        # set all the other preferences to a null value
+                        for j in range(1, arr.shape[1]):
+                            new_pref[i, j] = '-'
+                        # print(new_pref)
+                        self.calculate_new_strategic(new_pref,"BULLET",i)
+                        # for iterator in range(0,pos_winning_pref):
 
                     for j in range(1, arr.shape[1]):  # set all the other preferences to a null value
                         new_pref[i, j] = '-'
                     # print(new_pref)
                     self.calculate_new_strategic(new_pref,"BULLET",i)
 
+
         if BURYING: #fixme work in progress
             print("######## BURYING VOTING ########")
             for i in range(self.n_voters):
                 new_pref = arr.copy()
-                winner = False
-                for j in range(self.winner_prefs):
-                    if new_pref[i, j] == only_pref[0]: #skip if the winner is in my choices
-                        winner = True
-                if not winner:
-                    for j in range(self.winner_prefs, self.n_preferences-1):
-                        new_pref = arr.copy()
-                        if new_pref[i, j] == only_pref[0]:
-                            #try to lower the winner vote and calculate everything again
-                            for next in (j+1, self.n_preferences-1):
-                                new_pref = arr.copy()
-                                print(new_pref[i])
-                                temp = new_pref[i, j]
-                                print(next)
-                                new_pref[i, j] = new_pref[i, next]
-                                new_pref[i, next] = temp
-                                print(new_pref[i], "voter", i, " swap", j, next, "\n\n\n")
-                                self.calculate_new_strategic(new_pref, "BURYING", i)
-
-
+            winner = False
+            for j in range(self.winner_prefs):
+                # skip if the winner is in my choices
+                if new_pref[i, j] == only_pref[0]:
+                    winner = True
+            if not winner:
+                for j in range(self.winner_prefs, self.n_preferences-1):
+                    new_pref = arr.copy()
+                    if new_pref[i,j] == only_pref[0]:
+                        #try to lower the winner vote and calculate everything again
+                        for next in (j+1,self.n_preferences-1):
+                            new_pref = arr.copy()
+                            print(new_pref[i])
+                            temp = new_pref[i,j]
+                            print(next)
+                            new_pref[i,j] = new_pref[i,next]
+                            new_pref[i, next] = temp
+                            print(new_pref[i],"voter",i, " swap",j, next,"\n\n\n")
+                            self.calculate_new_strategic(new_pref, "BURYING", i)
         print(STRATEGIC_VOTING)
         return len(STRATEGIC_VOTING)
 
