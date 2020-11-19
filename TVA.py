@@ -2,20 +2,24 @@ import csv
 import pandas as pd
 import string
 import numpy as np
+from numpy import random
 
-df = pd.read_csv('voting_example3.csv', sep=";")
-
-BULLET       = True
-COMPROMISING = True
-BURYING      = True
-STRATEGIC_VOTING = set()
-
+############  GLOBAL PARAMS #################
 PLURALITY_VOTE = 1
 VOTING_FOR_2 = 2
 VETO = 3
 BORDA = 4
+STRATEGIC_VOTING = set()
 
+
+############  CONFIG #################
+BULLET       = True
+COMPROMISING = True
+BURYING      = True
+LONG_RUN     = True # if you want 100 trial of random tables, otherwise load the csv file
 CONSIDERED_VOTE = BORDA
+
+
 
 class Agent(object):
 
@@ -73,7 +77,7 @@ class Agent(object):
             max_d = self.n_preferences
             distance_voter = 0
             # for (info, expressed_vote) in df.iloc[i, 1:].iteritems():
-            for expressed_vote in range(table.shape[1]):
+            for expressed_vote in range(self.n_preferences):
                 # print("order",expressed_vote)
                 j = max_d  # J = W
                 for index2, v in enumerate(outcome):
@@ -91,11 +95,14 @@ class Agent(object):
     def calculate_happiness(self, distance, initial=False):
         # print("happiness",d,1 / (1 + np.abs(d)))
         happiness = []
+
         for d in distance:
             dist_value = distance[d]
             happiness.append(1 / (1 + np.abs(dist_value)))
+
         if initial == True:
             self.happiness = happiness
+
         return happiness
 
 
@@ -107,14 +114,13 @@ class Agent(object):
     def calculate_new_strategic(self, new_pref, method, voter):
         # print("new_pref", voter , new_pref)
         strategic_outcome = self.calculate_score(new_pref)
-        print("##### new outcome with,",method," #### \n", strategic_outcome)
+        print("##### new outcome with,", method, " #### \n", strategic_outcome)
         distance = self.calculate_distance(new_pref, strategic_outcome)  # todo #distance considering the '-'?
         happiness = self.calculate_happiness(distance)
         if happiness[voter] > self.happiness[voter]:  # fixme create hash from set
             print("old value and new", happiness[voter], self.happiness[voter])
             STRATEGIC_VOTING.add(str(method)+str(voter))
-            print(method,"happiness voter", voter, "\n old", self.happiness, " \n new",
-                  happiness)
+            print(method, "happiness voter", voter, "\n old", self.happiness, " \n new", happiness)
 
 
     """ calculate the happiness of the single voter given his distance"""
@@ -150,16 +156,16 @@ class Agent(object):
                 if not winner:
                     for j in range(self.winner_prefs, self.n_preferences-1):
                         new_pref = arr.copy()
-                        if new_pref[i,j] == only_pref[0]:
+                        if new_pref[i, j] == only_pref[0]:
                             #try to lower the winner vote and calculate everything again
-                            for next in (j+1,self.n_preferences-1):
+                            for next in (j+1, self.n_preferences-1):
                                 new_pref = arr.copy()
                                 print(new_pref[i])
-                                temp = new_pref[i,j]
+                                temp = new_pref[i, j]
                                 print(next)
-                                new_pref[i,j] = new_pref[i,next]
+                                new_pref[i, j] = new_pref[i, next]
                                 new_pref[i, next] = temp
-                                print(new_pref[i],"voter",i, " swap",j, next,"\n\n\n")
+                                print(new_pref[i], "voter", i, " swap", j, next, "\n\n\n")
                                 self.calculate_new_strategic(new_pref, "BURYING", i)
 
 
@@ -169,37 +175,58 @@ class Agent(object):
         #### NO DIFFERENCE WITH VOTING TYPE ####
 
 
+def initialize_random_tables(number, n_voters, n_preferences):  # MAX 26 preferences
+    if n_preferences > 26:  # we want use only the A-Z chars
+        n_preferences = 26
+    elif n_preferences < 1:
+        n_preferences = 1
 
+    random.seed(1)
+
+    table_list = []
+    for n in range(number):
+        voters_table = []
+        for v in range(n_voters):
+            random_row = random.permutation(n_preferences) + 65  # for the ASCII code
+            single_voter_row = np.array([chr(value) for value in random_row])
+            voters_table.append(single_voter_row)
+        table_list.append(np.array(voters_table))
+    return np.array(table_list)
 
 def main():
-    df_array = df.to_numpy()[:, 1:] # not considering the first column of voters's IDs
+    if LONG_RUN:
+        df = initialize_random_tables(100, 6, 5)
+    else:
+        df = pd.read_csv('voting_example3.csv', sep=";").to_numpy()[:, 1:] # not considering the first column of voters's IDs
+        df = np.expand_dims(df, axis=0)
 
-    n_voters, n_preferences = df_array.shape
+    n_test, n_voters, n_preferences = df.shape
 
-    TVA = Agent(n_preferences, n_voters, CONSIDERED_VOTE)
+    for n, table in enumerate(df):
+        print("\n\n##########  TEST ", n, "   ##########")
+        TVA = Agent(n_preferences, n_voters, CONSIDERED_VOTE)
 
-    ##### NON STRATEGIC VOTING OUTCOME ######
-    ns_outcome = TVA.calculate_score(df_array, True)
+        ##### NON STRATEGIC VOTING OUTCOME ######
+        ns_outcome = TVA.calculate_score(table, True)
 
-    #####  DISTANCE & HAPPINESS  #####
-    distance = TVA.calculate_distance(df_array, ns_outcome)
-    happiness = TVA.calculate_happiness(distance, True)
+        #####  DISTANCE & HAPPINESS  #####
+        distance = TVA.calculate_distance(table, ns_outcome)
+        happiness = TVA.calculate_happiness(distance, True)
 
-    print("\n\n#####  NON STRATEGIC RESULTS  #####""")
-    print("distance:        ", distance)
-    print("outcome:         ", ns_outcome)
-    print("election winner: ", ns_outcome[0])
-    print("happiness:       ", happiness)
+        print("\n#####  NON STRATEGIC RESULTS  #####""")
+        print("distance:        ", distance)
+        print("outcome:         ", ns_outcome)
+        print("election winner: ", ns_outcome[0])
+        print("happiness:       ", happiness)
 
 
 
-    print("\n\n####  STRATEGIC RESULTS  ####""")
-    ###### STRATEGIC VOTING #####
-    n_set = TVA.strategic_voting_bullet(df_array)
-
-    ###### OVERALL RISK OF SV ######
-    risk = TVA.overall_risk(n_set)
-    print("the risk for this situation is:", risk)
+        print("\n####  STRATEGIC RESULTS  ####""")
+        ###### STRATEGIC VOTING #####
+        n_set = TVA.strategic_voting_bullet(table)
+        ###### OVERALL RISK OF SV ######
+        risk = TVA.overall_risk(n_set)
+        print("the risk for this situation is:", risk)
 
 
 if __name__ == "__main__":
