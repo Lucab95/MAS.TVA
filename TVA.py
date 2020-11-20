@@ -14,9 +14,9 @@ BORDA = 4
 
 
 ############  CONFIG #################
-BULLET       = False
+BULLET       = True
 COMPROMISING = True
-BURYING      = False
+BURYING      = True
 LONG_RUN     = False # if you want 100 trial of random tables, otherwise load the csv file
 CONSIDERED_VOTE = BORDA
 
@@ -24,15 +24,17 @@ CONSIDERED_VOTE = BORDA
 
 class Agent(object):
 
-    def __init__(self, n_pref, n_voters, vote_type):
+    def __init__(self, n_pref, n_voters, vote_type,table):
         self.n_preferences = n_pref
         self.n_voters = n_voters
         self.vote_type = vote_type
         self.ns_outcome = {}
+        self.ns_preferences = table
         self.happiness = []
         self.strategic_voting = set()
         self.considered_vote = self.nunmber_of_considered_votes(vote_type)
         self.winner_prefs = self.considered_vote if self.vote_type != PLURALITY_VOTE and self.vote_type != BORDA else 1
+
 
 
     def nunmber_of_considered_votes(self, vote_type):
@@ -118,12 +120,12 @@ class Agent(object):
         # print("new_pref", voter , new_pref)
         strategic_outcome = self.calculate_score(new_pref)
         print("##### new outcome with",method," #### \n", strategic_outcome)
-        distance = self.calculate_distance(new_pref, strategic_outcome)
+        distance = self.calculate_distance(self.ns_preferences, strategic_outcome)
         happiness = self.calculate_happiness(distance)
-        if happiness[voter] >= self.happiness[voter]:  # fixme create hash from set
+        if happiness[voter] > self.happiness[voter]:
             diff = happiness[voter]-self.happiness[voter]
             print("new value and old", happiness[voter], self.happiness[voter], "diff", round(diff,5))
-            set_str = str(voter)
+            set_str = method+"-"+ str(voter+1)#todo add the method string-> done
             for i,z in enumerate(new_pref[voter]): #create a univoque string for the set
                 set_str += z
             self.strategic_voting.add(set_str)
@@ -135,7 +137,7 @@ class Agent(object):
 
     """ calculate the happiness of the single voter given his distance"""
     # not working, do not consider it
-    def strategic_voting_bullet(self, table): #todo consider winner case
+    def strategic_voting_bullet(self, table):
         # new_pref = copy.deepcopy(table)
         only_pref = list(list(zip(*self.ns_outcome))[0])  # make a list with only the preferences, no score
         winner_vote = only_pref[0]
@@ -172,6 +174,7 @@ class Agent(object):
                     self.calculate_new_strategic(new_pref,"BULLET",i)
 
         # the logic here is that we don't change our preferences.
+        #fixme Consider all the preferences-> done
         if BURYING:
             #slide the winner vote to all the next pos and for each calculate the outcome
             print("######## BURYING VOTING ########")
@@ -183,14 +186,14 @@ class Agent(object):
                     if new_pref[i, j] == winner_vote:
                         winner = True
                 if not winner:
-                    pos_winning_pref = self.winner_prefs
-                    new_pref = copy.deepcopy(table)  # do another copy to avoid problem while trying diff pos
-                    for pos in range(self.winner_prefs, len(new_pref[i])):  #look for the winning vote position
-                        if new_pref[i][pos] == winner_vote:
-                            pos_winning_pref = pos
-                            # print("length", len(new_pref[i]),pos_winning_pref)
-                            break
-                    for cur_win_pos in range(pos_winning_pref,len(new_pref[i])-1):
+                    # pos_winning_pref = self.winner_prefs
+                    # new_pref = copy.deepcopy(table)  # do another copy to avoid problem while trying diff pos
+                    # for pos in range(self.winner_prefs, len(new_pref[i])):  #look for the winning vote position
+                    #     if new_pref[i][pos] == winner_vote:
+                    #         pos_winning_pref = pos
+                    #         # print("length", len(new_pref[i]),pos_winning_pref)
+                    #         break
+                    for cur_win_pos in range(0,len(new_pref[i])-1):
                         next = cur_win_pos+1
                         # print("entra?",cur_win_pos,new_pref[i][cur_win_pos],new_pref[i][next])
                         print("old_pref", new_pref[i])
@@ -198,7 +201,10 @@ class Agent(object):
                         new_pref[i, cur_win_pos] = new_pref[i, next]
                         new_pref[i, next] = temp
                         print("new_pref",new_pref[i])
+
                         self.calculate_new_strategic(new_pref, "BURYING", i)
+
+                        #todo calculate specific set for compr, bury then compare them.
 
         if COMPROMISING:
             #slide the winner vote to all the next pos and for each calculate the outcome
@@ -211,17 +217,17 @@ class Agent(object):
                     if new_pref[i, j] == winner_vote:
                         winner = True
                 if not winner:
-                    pos_winning_pref = self.winner_prefs
-                    new_pref = copy.deepcopy(table)  # do another copy to avoid problem while trying diff pos
-                    for pos in range(self.winner_prefs, len(new_pref[i])):  #look for the winning vote position
-                        if new_pref[i][pos] == winner_vote:
-                            # print("length", len(new_pref[i]),pos_winning_pref)
-                            break
+                    # pos_winning_pref = self.winner_prefs
+                    # new_pref = copy.deepcopy(table)  # do another copy to avoid problem while trying diff pos
+                    # for pos in range(self.winner_prefs, len(new_pref[i])):  #look for the winning vote position
+                    #     if new_pref[i][pos] == winner_vote:
+                    #         # print("length", len(new_pref[i]),pos_winning_pref)
+                    #         break
                     for cur_win_pos in range(len(new_pref[i])-1, 0, -1):
-                        if cur_win_pos==pos:
-                            print("voter pass",i,cur_win_pos)
-                            pass
-                        else:
+                        # if cur_win_pos==pos:
+                        #     print("voter pass",i,cur_win_pos)
+                        #     pass
+                        # else:
                             print("voter not pass", i, cur_win_pos)
                             prev = cur_win_pos-1
                             # print("entra?",cur_win_pos,new_pref[i][cur_win_pos],new_pref[i][next])
@@ -267,7 +273,7 @@ def main():
 
     for n, table in enumerate(df):
         print("\n\n##########  TEST ", n, "   ##########")
-        TVA = Agent(n_preferences, n_voters, CONSIDERED_VOTE)
+        TVA = Agent(n_preferences, n_voters, CONSIDERED_VOTE,table)
 
         ##### NON STRATEGIC VOTING OUTCOME ######
         ns_outcome = TVA.calculate_score(table, True)
@@ -303,6 +309,12 @@ expected OUTPUT
    - v new list of strategic voting option,
    - O voting results applying v
    - H resulting happiness
+   - z briefly motivation
 - Risk
 """
+
+#todo consider initial preferences while calculating happiness -> done
+#todo avg of tests
+#todo save results on file
+#
 
