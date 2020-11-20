@@ -5,6 +5,7 @@ import string
 import numpy as np
 from numpy import random
 import copy
+import statistics
 
 
 ############  GLOBAL PARAMS #################
@@ -18,8 +19,10 @@ BORDA = 4
 BULLET       = True
 COMPROMISING = True
 BURYING      = True
-LONG_RUN     = False  # if you want 100 trial of random tables, otherwise load the csv file
+LONG_RUN     = True  # if you want 100 trial of random tables, otherwise load the csv file
 CONSIDERED_VOTE = BORDA
+#if true add the method used to find the strategic preference
+SPECIFY_METHOD_IN_SET= False
 DF_NAME = 'voting_example3.csv'
 LOG_NAME ='log.txt'
 
@@ -37,11 +40,13 @@ class Agent(object):
         self.set_compromising = set()
         self.set_burying= set()
         self.set_bullett= set()
-        self.considered_vote = self.nunmber_of_considered_votes(vote_type)
+        self.considered_vote = self.number_of_considered_votes(vote_type)
         self.winner_prefs = self.considered_vote if self.vote_type != PLURALITY_VOTE and self.vote_type != BORDA else 1
+        self.election_happ_incr_list=[]
+        self.avg_election_happ_incr=0
 
 
-    def nunmber_of_considered_votes(self, vote_type):
+    def number_of_considered_votes(self, vote_type):
         if vote_type == PLURALITY_VOTE:
             return 1
         elif vote_type == VOTING_FOR_2:
@@ -132,16 +137,19 @@ class Agent(object):
         # print("##### new outcome with", method, " #### \n", strategic_outcome)
         distance = self.calculate_distance(self.ns_preferences, strategic_outcome)
         happiness = self.calculate_happiness(distance)
-
         if happiness[voter] > self.happiness[voter]:
+            self.election_happ_incr_list.append(happiness[voter])
             diff = happiness[voter]-self.happiness[voter]
             # print("new value and old", happiness[voter], self.happiness[voter], "diff", round(diff, 5))
-            set_str = str(voter+1)#todo add the method string-> done
+            set_str = str(voter + 1)
             for i, z in enumerate(new_pref[voter]): #create a univoque string for the set
                 set_str += z
+            if SPECIFY_METHOD_IN_SET:
+                set_str += "."+method
             self.strategic_voting.add(set_str)
             # print(method, "happiness voter", voter, "\n old", self.happiness, " \n new",
             #       happiness, "\n\n\n")
+            print("voter ",voter,"outcome:",strategic_outcome,"gave an happiness increase of:",happiness[voter])
             if method =="BULLET":
                 self.set_bullett.add(set_str)
             elif method =="BURYING":
@@ -159,12 +167,11 @@ class Agent(object):
         # new_pref = copy.deepcopy(table)
         only_pref = list(list(zip(*self.ns_outcome))[0])  # make a list with only the preferences, no score
         winner_vote = only_pref[0]
-        print("win", winner_vote)
-        # print("real",real_outcome)
+        print("true preferences \n", self.ns_preferences)
 
         # working and considers all the cases, also changing my first preference
         if BULLET and CONSIDERED_VOTE > 1:
-            print("######## BULLET VOTING ########\n\n")
+            print("######## BULLET VOTING ########")
             for i in range(self.n_voters):
                 new_pref = copy.deepcopy(table)
                 if new_pref[i, 0] == winner_vote:  # skip if the first choice is already the winner
@@ -213,7 +220,6 @@ class Agent(object):
                     #         break
                     for z in range(len(new_pref[i])):
                         new_pref = copy.deepcopy(table)
-                        print(z)
                         for cur_win_pos in range(z,len(new_pref[i])-1):
                             next = cur_win_pos+1
                             # print("entra?",cur_win_pos,new_pref[i][cur_win_pos],new_pref[i][next])
@@ -224,8 +230,6 @@ class Agent(object):
                             # print("new_pref", new_pref[i])
 
                             self.calculate_new_strategic(new_pref, "BURYING", i)
-
-                            #todo calculate specific set for compr, bury then compare them.
 
         if COMPROMISING:
             #slide the winner vote to all the prev pos and for each calculate the outcome
@@ -262,8 +266,13 @@ class Agent(object):
                             self.calculate_new_strategic(new_pref, "COMPROMISING", i)
 
 
-        print("We have a total of ", len(self.strategic_voting), "different strategic voting")
-        print("The options are: \n", self.strategic_voting)
+        print("We have a total of ", len(self.strategic_voting), "differents strategic voting")
+        if len(self.strategic_voting)>0:
+            print("The options are:\n", self.strategic_voting)
+            # if len(self.election_happ_incr_list)>0:
+            self.avg_election_happ_incr = statistics.mean(self.election_happ_incr_list)
+            print("The averages increase for this election, using strategic voting is",self.avg_election_happ_incr)
+
         return len(self.strategic_voting)
 
         #### NO DIFFERENCE WITH VOTING TYPE ####
@@ -290,6 +299,9 @@ def initialize_random_tables(number, n_voters, n_preferences):  # MAX 26 prefere
 
 
 def main():
+    avg_risk=0
+    elections_happiness = 0
+    election_strategic_happiness_incr=0
     if LONG_RUN:
         df = initialize_random_tables(100, 5, 5)
     else:
@@ -298,7 +310,7 @@ def main():
 
     n_test, n_voters, n_preferences = df.shape
 
-    # CHECK DF is well-formed
+    # CHECK DF if it is well-formed
     error = False
     for n, table in enumerate(df):
         check_test = list(string.ascii_uppercase)[:n_preferences]
@@ -324,35 +336,45 @@ def main():
         #####  DISTANCE & HAPPINESS  #####
         distance = TVA.calculate_distance(table, non_strategic_outcome)
         happiness = TVA.calculate_happiness(distance, True)
-
+        elections_happiness += statistics.mean(happiness)
         print("\n#####  NON STRATEGIC RESULTS  #####""")
         print("distance:        ", distance)
         print("outcome:         ", non_strategic_outcome)
         print("election winner: ", non_strategic_outcome[0])
         print("happiness:       ", happiness)
-
+        print("The non strategic happiness avg of this election is ", statistics.mean(happiness))
 
 
         print("\n####  STRATEGIC RESULTS  ####""")
         ###### STRATEGIC VOTING #####
         n_set = TVA.strategic_voting_types(table)
-        if BULLET:          print("we have", len(TVA.set_bullett), "strategic voting for the Bullet method")
+        if BULLET:
+            print("we have", len(TVA.set_bullett), "strategic voting for the Bullet method")
         if BURYING:
             print("we have", len(TVA.set_burying), "strategic voting for the Burying method")
-            print(TVA.set_burying)
+            # print(TVA.set_burying)
         if COMPROMISING:
             print("we have", len(TVA.set_compromising), "strategic voting for the Compromising method")
-            print(TVA.set_compromising)
+            # print(TVA.set_compromising)
         if BURYING and COMPROMISING:
             intersect = TVA.set_burying.intersection(TVA.set_compromising)
-            print(intersect)
+            # print(intersect)
             if len(intersect)!=0:
-                print("cases in common between Burying and Compromising are:",TVA.set_burying.intersection(TVA.set_compromising))
+                print("cases in common between Burying and Compromising:",intersect)
 
 
         ###### OVERALL RISK OF SV ######
         risk = TVA.overall_risk(n_set)
         print("the risk for this situation is:", risk)
+        avg_risk += risk
+        election_strategic_happiness_incr += TVA.avg_election_happ_incr
+    if LONG_RUN:
+        print("\n#### AVG ####")
+        print("the average risk through all the elections is:", round(avg_risk/len(df), 4))
+        print("the average of non strategic happiness through all the election is:", round(elections_happiness/len(df), 4))
+        print("the average of strategic happiness increase through all the election is:", round(election_strategic_happiness_incr/len(df), 4))
+        print()
+
 
 
 if __name__ == "__main__":
