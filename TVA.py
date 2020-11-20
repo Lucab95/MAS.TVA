@@ -1,3 +1,4 @@
+import sys
 import csv
 import pandas as pd
 import string
@@ -20,6 +21,7 @@ BURYING      = True
 LONG_RUN     = False  # if you want 100 trial of random tables, otherwise load the csv file
 CONSIDERED_VOTE = BORDA
 DF_NAME = 'voting_example3.csv'
+LOG_NAME ='log.txt'
 
 
 class Agent(object):
@@ -365,7 +367,15 @@ if __name__ == "__main__":
        - z briefly motivation
     - Risk
     """
+    orig_stdout = sys.stdout
+    f = open(LOG_NAME, 'w')
+    sys.stdout = f
+
     main()
+
+
+    sys.stdout = orig_stdout
+    f.close()
 
 #todo consider initial preferences while calculating happiness -> done
 #todo avg of tests
