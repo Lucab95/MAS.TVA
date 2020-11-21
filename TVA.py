@@ -174,36 +174,38 @@ class Agent(object):
         winner_vote = only_pref[0]
         print("true preferences \n", self.ns_preferences)
 
-        if not BRUTE_FORCE:
-        # working and considers all the cases, also changing my first preference
-            if BULLET and CONSIDERED_VOTE > 1:
-                print("######## BULLET VOTING ########")
-                for i in range(self.n_voters):
-                    new_pref = copy.deepcopy(table)
-                    if new_pref[i, 0] == winner_vote:  # skip if the first choice is already the winner
-                        pass
-                    else:
-                        pos_winning_pref = 1
-                        for pos in range(1, len(new_pref[i])):
-                            if new_pref[i][pos] == winner_vote:
-                                pos_winning_pref = pos
-                                break
-                        # put all the preferences before the winning one on top and vote only for that one.
-                        for other_vote in range(0, pos_winning_pref):
-                            new_pref = copy.deepcopy(table)
-                            new_pref[i, 0] = new_pref[i, other_vote]
-                            # set all the other preferences to a null value
-                            for j in range(1, table.shape[1]):
-                                new_pref[i, j] = '-'
-                            # print(new_pref)
-                            self.calculate_new_strategic(new_pref,"BULLET",i)
-                            # for iterator in range(0,pos_winning_pref):
 
-                        for j in range(1, table.shape[1]):  # set all the other preferences to a null value
+        # working and considers all the cases, also changing my first preference
+        if BULLET and CONSIDERED_VOTE > 1:
+            print("######## BULLET VOTING ########")
+            for i in range(self.n_voters):
+                new_pref = copy.deepcopy(table)
+                if new_pref[i, 0] == winner_vote:  # skip if the first choice is already the winner
+                    pass
+                else:
+                    pos_winning_pref = 1
+                    for pos in range(1, len(new_pref[i])):
+                        if new_pref[i][pos] == winner_vote:
+                            pos_winning_pref = pos
+                            break
+                    # put all the preferences before the winning one on top and vote only for that one.
+                    for other_vote in range(0, pos_winning_pref):
+                        new_pref = copy.deepcopy(table)
+                        new_pref[i, 0] = new_pref[i, other_vote]
+                        # set all the other preferences to a null value
+                        for j in range(1, table.shape[1]):
                             new_pref[i, j] = '-'
                         # print(new_pref)
                         self.calculate_new_strategic(new_pref,"BULLET",i)
+                        # for iterator in range(0,pos_winning_pref):
 
+                    for j in range(1, table.shape[1]):  # set all the other preferences to a null value
+                        new_pref[i, j] = '-'
+                    # print(new_pref)
+                    self.calculate_new_strategic(new_pref,"BULLET",i)
+
+
+        if not BRUTE_FORCE:
             # the logic here is that we don't change our preferences.
             #fixme Consider all the preferences-> done
             if BURYING:
