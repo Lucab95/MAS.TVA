@@ -4,8 +4,8 @@ import pandas as pd
 import string
 import numpy as np
 from numpy import random
-import copy
-import statistics
+import copy, statistics, time
+from itertools import permutations
 
 
 ############  GLOBAL PARAMS #################
@@ -19,7 +19,9 @@ BORDA = 4
 BULLET       = True
 COMPROMISING = True
 BURYING      = True
-LONG_RUN     = True  # if you want 100 trial of random tables, otherwise load the csv file
+LONG_RUN     = False  # if you want 100 trial of random tables, otherwise load the csv file
+#If BRUTEFORCE is active -> no possibility to decide the strategic voting used
+BRUTE_FORCE = False
 CONSIDERED_VOTE = BORDA
 #if true add the method used to find the strategic preference
 SPECIFY_METHOD_IN_SET= False
@@ -40,6 +42,7 @@ class Agent(object):
         self.set_compromising = set()
         self.set_burying= set()
         self.set_bullett= set()
+        self.brute_force= set()
         self.considered_vote = self.number_of_considered_votes(vote_type)
         self.winner_prefs = self.considered_vote if self.vote_type != PLURALITY_VOTE and self.vote_type != BORDA else 1
         self.election_happ_incr_list=[]
@@ -156,6 +159,8 @@ class Agent(object):
                 self.set_burying.add(set_str)
             elif method =="COMPROMISING":
                 self.set_compromising.add(set_str)
+            else:
+                self.brute_force.add(set_str)
         else:
             # print("lower or same happiness")
             pass
@@ -169,102 +174,113 @@ class Agent(object):
         winner_vote = only_pref[0]
         print("true preferences \n", self.ns_preferences)
 
+        if not BRUTE_FORCE:
         # working and considers all the cases, also changing my first preference
-        if BULLET and CONSIDERED_VOTE > 1:
-            print("######## BULLET VOTING ########")
-            for i in range(self.n_voters):
-                new_pref = copy.deepcopy(table)
-                if new_pref[i, 0] == winner_vote:  # skip if the first choice is already the winner
-                    pass
-                else:
-                    pos_winning_pref = 1
-                    for pos in range(1, len(new_pref[i])):
-                        if new_pref[i][pos] == winner_vote:
-                            pos_winning_pref = pos
-                            break
-                    # put all the preferences before the winning one on top and vote only for that one.
-                    for other_vote in range(0, pos_winning_pref):
-                        new_pref = copy.deepcopy(table)
-                        new_pref[i, 0] = new_pref[i, other_vote]
-                        # set all the other preferences to a null value
-                        for j in range(1, table.shape[1]):
+            if BULLET and CONSIDERED_VOTE > 1:
+                print("######## BULLET VOTING ########")
+                for i in range(self.n_voters):
+                    new_pref = copy.deepcopy(table)
+                    if new_pref[i, 0] == winner_vote:  # skip if the first choice is already the winner
+                        pass
+                    else:
+                        pos_winning_pref = 1
+                        for pos in range(1, len(new_pref[i])):
+                            if new_pref[i][pos] == winner_vote:
+                                pos_winning_pref = pos
+                                break
+                        # put all the preferences before the winning one on top and vote only for that one.
+                        for other_vote in range(0, pos_winning_pref):
+                            new_pref = copy.deepcopy(table)
+                            new_pref[i, 0] = new_pref[i, other_vote]
+                            # set all the other preferences to a null value
+                            for j in range(1, table.shape[1]):
+                                new_pref[i, j] = '-'
+                            # print(new_pref)
+                            self.calculate_new_strategic(new_pref,"BULLET",i)
+                            # for iterator in range(0,pos_winning_pref):
+
+                        for j in range(1, table.shape[1]):  # set all the other preferences to a null value
                             new_pref[i, j] = '-'
                         # print(new_pref)
                         self.calculate_new_strategic(new_pref,"BULLET",i)
-                        # for iterator in range(0,pos_winning_pref):
 
-                    for j in range(1, table.shape[1]):  # set all the other preferences to a null value
-                        new_pref[i, j] = '-'
-                    # print(new_pref)
-                    self.calculate_new_strategic(new_pref,"BULLET",i)
+            # the logic here is that we don't change our preferences.
+            #fixme Consider all the preferences-> done
+            if BURYING:
+                #slide the winner vote to all the next pos and for each calculate the outcome
+                print("######## BURYING VOTING ########")
+                for i in range(self.n_voters):
+                    new_pref = copy.deepcopy(table)
+                    winner = False
+                    for j in range(self.winner_prefs):
+                        # skip if the winner is in my n choices -> related to the voting scheme
+                        if new_pref[i, j] == winner_vote:
+                            winner = True
+                    if not winner:
+                        # pos_winning_pref = self.winner_prefs
+                        # new_pref = copy.deepcopy(table)  # do another copy to avoid problem while trying diff pos
+                        # for pos in range(self.winner_prefs, len(new_pref[i])):  #look for the winning vote position
+                        #     if new_pref[i][pos] == winner_vote:
+                        #         pos_winning_pref = pos
+                        #         # print("length", len(new_pref[i]),pos_winning_pref)
+                        #         break
+                        for z in range(len(new_pref[i])):
+                            new_pref = copy.deepcopy(table)
+                            for cur_win_pos in range(z,len(new_pref[i])-1):
+                                next = cur_win_pos+1
+                                # print("entra?",cur_win_pos,new_pref[i][cur_win_pos],new_pref[i][next])
+                                # print("old_pref", new_pref[i])
+                                temp = new_pref[i, cur_win_pos]
+                                new_pref[i, cur_win_pos] = new_pref[i, next]
+                                new_pref[i, next] = temp
+                                # print("new_pref", new_pref[i])
 
-        # the logic here is that we don't change our preferences.
-        #fixme Consider all the preferences-> done
-        if BURYING:
-            #slide the winner vote to all the next pos and for each calculate the outcome
-            print("######## BURYING VOTING ########")
+                                self.calculate_new_strategic(new_pref, "BURYING", i)
+
+            if COMPROMISING:
+                #slide the winner vote to all the prev pos and for each calculate the outcome
+                print("######## COMPROSING VOTING ########")
+                for i in range(self.n_voters):
+                    new_pref = copy.deepcopy(table)
+                    winner = False
+                    for j in range(self.winner_prefs):
+                        # skip if the winner is in my n choices -> related to the voting scheme
+                        if new_pref[i, j] == winner_vote:
+                            winner = True
+                    if not winner:
+                        # pos_winning_pref = self.winner_prefs
+                        # new_pref = copy.deepcopy(table)  # do another copy to avoid problem while trying diff pos
+                        # for pos in range(self.winner_prefs, len(new_pref[i])):  #look for the winning vote position
+                        #     if new_pref[i][pos] == winner_vote:
+                        #         # print("length", len(new_pref[i]),pos_winning_pref)
+                        #         break
+                        for z in range(len(new_pref[i])-1,0,-1):
+                            new_pref = copy.deepcopy(table)
+                            for cur_win_pos in range(z, 0, -1):
+                                # if cur_win_pos==pos:
+                                #     print("voter pass",i,cur_win_pos)
+                                #     pass
+                                # else:
+                                #     print("voter not pass", i, cur_win_pos)
+                                prev = cur_win_pos-1
+                                # print("entra?",cur_win_pos,new_pref[i][cur_win_pos],new_pref[i][next])
+                                # print("old_pref", new_pref[i])
+                                temp = new_pref[i, cur_win_pos]
+                                new_pref[i, cur_win_pos] = new_pref[i, prev]
+                                new_pref[i, prev] = temp
+                                # print("new_pref",new_pref[i])
+                                self.calculate_new_strategic(new_pref, "COMPROMISING", i)
+        else:
+            print("######## BRUTEFORCE VOTING CALCULATION ########")
+
             for i in range(self.n_voters):
-                new_pref = copy.deepcopy(table)
-                winner = False
-                for j in range(self.winner_prefs):
-                    # skip if the winner is in my n choices -> related to the voting scheme
-                    if new_pref[i, j] == winner_vote:
-                        winner = True
-                if not winner:
-                    # pos_winning_pref = self.winner_prefs
-                    # new_pref = copy.deepcopy(table)  # do another copy to avoid problem while trying diff pos
-                    # for pos in range(self.winner_prefs, len(new_pref[i])):  #look for the winning vote position
-                    #     if new_pref[i][pos] == winner_vote:
-                    #         pos_winning_pref = pos
-                    #         # print("length", len(new_pref[i]),pos_winning_pref)
-                    #         break
-                    for z in range(len(new_pref[i])):
-                        new_pref = copy.deepcopy(table)
-                        for cur_win_pos in range(z,len(new_pref[i])-1):
-                            next = cur_win_pos+1
-                            # print("entra?",cur_win_pos,new_pref[i][cur_win_pos],new_pref[i][next])
-                            # print("old_pref", new_pref[i])
-                            temp = new_pref[i, cur_win_pos]
-                            new_pref[i, cur_win_pos] = new_pref[i, next]
-                            new_pref[i, next] = temp
-                            # print("new_pref", new_pref[i])
-
-                            self.calculate_new_strategic(new_pref, "BURYING", i)
-
-        if COMPROMISING:
-            #slide the winner vote to all the prev pos and for each calculate the outcome
-            print("######## COMPROSING VOTING ########")
-            for i in range(self.n_voters):
-                new_pref = copy.deepcopy(table)
-                winner = False
-                for j in range(self.winner_prefs):
-                    # skip if the winner is in my n choices -> related to the voting scheme
-                    if new_pref[i, j] == winner_vote:
-                        winner = True
-                if not winner:
-                    # pos_winning_pref = self.winner_prefs
-                    # new_pref = copy.deepcopy(table)  # do another copy to avoid problem while trying diff pos
-                    # for pos in range(self.winner_prefs, len(new_pref[i])):  #look for the winning vote position
-                    #     if new_pref[i][pos] == winner_vote:
-                    #         # print("length", len(new_pref[i]),pos_winning_pref)
-                    #         break
-                    for z in range(len(new_pref[i])-1,0,-1):
-                        new_pref = copy.deepcopy(table)
-                        for cur_win_pos in range(z, 0, -1):
-                            # if cur_win_pos==pos:
-                            #     print("voter pass",i,cur_win_pos)
-                            #     pass
-                            # else:
-                            #     print("voter not pass", i, cur_win_pos)
-                            prev = cur_win_pos-1
-                            # print("entra?",cur_win_pos,new_pref[i][cur_win_pos],new_pref[i][next])
-                            # print("old_pref", new_pref[i])
-                            temp = new_pref[i, cur_win_pos]
-                            new_pref[i, cur_win_pos] = new_pref[i, prev]
-                            new_pref[i, prev] = temp
-                            # print("new_pref",new_pref[i])
-                            self.calculate_new_strategic(new_pref, "COMPROMISING", i)
-
+                    new_pref = copy.deepcopy(self.ns_preferences)
+                    perms = permutations(new_pref[i])
+                    for voter_perm in list(perms):
+                        print(" ",voter_perm)
+                        new_pref = copy.deepcopy(self.ns_preferences)
+                        new_pref[i]=voter_perm
+                        self.calculate_new_strategic(new_pref, "BruteForce", i)
 
         print("We have a total of ", len(self.strategic_voting), "differents strategic voting")
         if len(self.strategic_voting)>0:
@@ -299,9 +315,12 @@ def initialize_random_tables(number, n_voters, n_preferences):  # MAX 26 prefere
 
 
 def main():
+    start_time = time.time()
     avg_risk=0
+    avg_time = []
     elections_happiness = 0
     election_strategic_happiness_incr=0
+
     if LONG_RUN:
         df = initialize_random_tables(100, 5, 5)
     else:
@@ -327,6 +346,7 @@ def main():
         return 1
 
     for n, table in enumerate(df):
+        exec_time = time.time()
         print("\n\n##########  TEST ", n, "   ##########")
         TVA = Agent(n_preferences, n_voters, CONSIDERED_VOTE,table)
 
@@ -348,32 +368,38 @@ def main():
         print("\n####  STRATEGIC RESULTS  ####""")
         ###### STRATEGIC VOTING #####
         n_set = TVA.strategic_voting_types(table)
-        if BULLET:
-            print("we have", len(TVA.set_bullett), "strategic voting for the Bullet method")
-        if BURYING:
-            print("we have", len(TVA.set_burying), "strategic voting for the Burying method")
-            # print(TVA.set_burying)
-        if COMPROMISING:
-            print("we have", len(TVA.set_compromising), "strategic voting for the Compromising method")
-            # print(TVA.set_compromising)
-        if BURYING and COMPROMISING:
-            intersect = TVA.set_burying.intersection(TVA.set_compromising)
-            # print(intersect)
-            if len(intersect)!=0:
-                print("cases in common between Burying and Compromising:",intersect)
+        if not BRUTE_FORCE:
+            if BULLET:
+                print("we have", len(TVA.set_bullett), "strategic voting for the Bullet method")
+            if BURYING:
+                print("we have", len(TVA.set_burying), "strategic voting for the Burying method")
+                # print(TVA.set_burying)
+            if COMPROMISING:
+                print("we have", len(TVA.set_compromising), "strategic voting for the Compromising method")
+                # print(TVA.set_compromising)
+            if BURYING and COMPROMISING:
+                intersect = TVA.set_burying.intersection(TVA.set_compromising)
+                # print(intersect)
+                if len(intersect)!=0:
+                    print("cases in common between Burying and Compromising:",intersect)
 
 
         ###### OVERALL RISK OF SV ######
         risk = TVA.overall_risk(n_set)
-        print("the risk for this situation is:", risk)
+        print("The risk for this situation is:", risk)
         avg_risk += risk
+        avg_time.append(time.time() - exec_time)
         election_strategic_happiness_incr += TVA.avg_election_happ_incr
     if LONG_RUN:
+
         print("\n#### AVG ####")
-        print("the average risk through all the elections is:", round(avg_risk/len(df), 4))
-        print("the average of non strategic happiness through all the election is:", round(elections_happiness/len(df), 4))
-        print("the average of strategic happiness increase through all the election is:", round(election_strategic_happiness_incr/len(df), 4))
-        print()
+        print("The average risk through all the elections is:", round(avg_risk/len(df), 4))
+        print("The average of non strategic happiness through all the election is:", round(elections_happiness/len(df), 4))
+        print("The average of strategic happiness increase through all the election is:", round(election_strategic_happiness_incr/len(df), 4))
+        print("the average execution time is:",round(statistics.mean(avg_time),5))
+    end_time = time.time() - start_time
+    print("The execution took", round(end_time,5),"seconds")
+
 
 
 
