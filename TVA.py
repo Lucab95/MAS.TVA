@@ -19,15 +19,17 @@ BORDA = 4
 BULLET       = True
 COMPROMISING = True
 BURYING      = True
-LONG_RUN     = False  # if you want 100 trial of random tables, otherwise load the csv file
+LONG_RUN     = True  # if you want 100 trial of random tables, otherwise load the csv file
 #If BRUTEFORCE is active -> no possibility to decide the strategic voting used
 BRUTE_FORCE = True
 CONSIDERED_VOTE = BORDA
 #if true add the method used to find the strategic preference
 SPECIFY_METHOD_IN_SET= False
 DF_NAME = 'voting_example3.csv'
-SAVING_LOG = True
-LOG_NAME ='log.txt'
+N_PREF = 5
+N_VOTERS = 5
+SAVING_LOG = False
+LOG_NAME =f'log_{BRUTE_FORCE}_voter{N_VOTERS}_pref{N_PREF}_{CONSIDERED_VOTE}.txt'
 
 
 class Agent(object):
@@ -153,7 +155,7 @@ class Agent(object):
             self.strategic_voting.add(set_str)
             # print(method, "happiness voter", voter, "\n old", self.happiness, " \n new",
             #       happiness, "\n\n\n")
-            print("voter ",voter,"outcome:",strategic_outcome,"gave an happiness increase of:",happiness[voter])
+            # print("voter ",voter,"outcome:",strategic_outcome,"gave an happiness increase of:",happiness[voter])
             if method =="BULLET":
                 self.set_bullett.add(set_str)
             elif method =="BURYING":
@@ -320,13 +322,19 @@ def initialize_random_tables(number, n_voters, n_preferences):  # MAX 26 prefere
 
 def main():
     start_time = time.time()
-    avg_risk=0
+    time_compute = 0
+    time_manipulate = 0
+    avg_risk = 0
     avg_time = []
+    compromising_all = 0
+    bullet_voting_all = 0
+    burying_all = 0
+    burying_compromising_all = 0
     elections_happiness = 0
     election_strategic_happiness_incr=0
 
     if LONG_RUN:
-        df = initialize_random_tables(100, 5, 5)
+        df = initialize_random_tables(1000, N_VOTERS, N_PREF)
     else:
         df = pd.read_csv(DF_NAME, sep=";").to_numpy()[:, 1:] # not considering the first column of voters's IDs
         df = np.expand_dims(df, axis=0)
@@ -354,6 +362,8 @@ def main():
         print("\n\n##########  TEST ", n, "   ##########")
         TVA = Agent(n_preferences, n_voters, CONSIDERED_VOTE,table)
 
+        time_compute_start = time.time()
+
         ##### NON STRATEGIC VOTING OUTCOME ######
         non_strategic_outcome = TVA.calculate_outcome(table, True)
 
@@ -368,6 +378,9 @@ def main():
         print("happiness:       ", happiness)
         print("The non strategic happiness avg of this election is ", statistics.mean(happiness))
 
+        time_compute += time.time() - time_compute_start
+
+        time_manipulate_start = time.time()
 
         print("\n####  STRATEGIC RESULTS  ####""")
         ###### STRATEGIC VOTING #####
@@ -375,17 +388,22 @@ def main():
         if not BRUTE_FORCE:
             if BULLET:
                 print("we have", len(TVA.set_bullett), "strategic voting for the Bullet method")
+                bullet_voting_all += len(TVA.set_bullett)
             if BURYING:
                 print("we have", len(TVA.set_burying), "strategic voting for the Burying method")
+                burying_all += len(TVA.set_burying)
                 # print(TVA.set_burying)
             if COMPROMISING:
                 print("we have", len(TVA.set_compromising), "strategic voting for the Compromising method")
+                compromising_all += len(TVA.set_compromising)
                 # print(TVA.set_compromising)
             if BURYING and COMPROMISING:
                 intersect = TVA.set_burying.intersection(TVA.set_compromising)
                 # print(intersect)
-                if len(intersect)!=0:
-                    print("cases in common between Burying and Compromising:",intersect)
+                if len(intersect) != 0:
+                    print("cases in common between Burying and Compromising:", intersect)
+                    burying_compromising_all += len(intersect)
+        time_manipulate += time.time() - time_manipulate_start
 
 
         ###### OVERALL RISK OF SV ######
@@ -401,6 +419,12 @@ def main():
         print("The average of non strategic happiness through all the election is:", round(elections_happiness/len(df), 4))
         print("The average of strategic happiness increase through all the election is:", round(election_strategic_happiness_incr/len(df), 4))
         print("the average execution time is:",round(statistics.mean(avg_time),5))
+        print("The average computing time is:", round(time_compute / 1000, 5))
+        print("The average manipulation time is:", round(time_manipulate / 1000, 5))
+        print("Compromising:", compromising_all)
+        print("Burying:", burying_all)
+        print("Bullet voting:", bullet_voting_all)
+        print("Compromising/Burying:", burying_compromising_all)
     end_time = time.time() - start_time
     print("The execution took", round(end_time,5),"seconds")
 
