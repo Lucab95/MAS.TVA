@@ -21,12 +21,12 @@ COMPROMISING = True
 BURYING      = True
 LONG_RUN     = False  # if you want 100 trial of random tables, otherwise load the csv file
 #If BRUTEFORCE is active -> no possibility to decide the strategic voting used
-BRUTE_FORCE = False
+BRUTE_FORCE = True
 CONSIDERED_VOTE = BORDA
 #if true add the method used to find the strategic preference
 SPECIFY_METHOD_IN_SET= False
 DF_NAME = 'voting_example3.csv'
-SAVING_LOG = False
+SAVING_LOG = True
 LOG_NAME ='log.txt'
 
 
@@ -184,21 +184,22 @@ class Agent(object):
                 if new_pref[i, 0] == winner_vote:  # skip if the first choice is already the winner
                     pass
                 else:
-                #    pos_winning_pref = 1
-                #    for pos in range(1, len(new_pref[i])):
-                #        if new_pref[i][pos] == winner_vote:
-                #            pos_winning_pref = pos
-                #            break
-                #    # put all the preferences before the winning one on top and vote only for that one.
-                #    for other_vote in range(0, pos_winning_pref):
-                #        new_pref = copy.deepcopy(table)
-                #        new_pref[i, 0] = new_pref[i, other_vote]
-                #        # set all the other preferences to a null value
-                #        for j in range(1, table.shape[1]):
-                #            new_pref[i, j] = '-'
-                #        # print(new_pref)
-                #        self.calculate_new_strategic(new_pref,"BULLET",i)
-                #        # for iterator in range(0,pos_winning_pref):
+                    if BRUTE_FORCE:
+                        pos_winning_pref = 1
+                        for pos in range(1, len(new_pref[i])):
+                            if new_pref[i][pos] == winner_vote:
+                                pos_winning_pref = pos
+                                break
+                        # put all the preferences before the winning one on top and vote only for that one.
+                        for other_vote in range(0, pos_winning_pref):
+                            new_pref = copy.deepcopy(table)
+                            new_pref[i, 0] = new_pref[i, other_vote]
+                            # set all the other preferences to a null value
+                            for j in range(1, table.shape[1]):
+                                new_pref[i, j] = '-'
+                            # print(new_pref)
+                            self.calculate_new_strategic(new_pref,"BULLET",i)
+                            # for iterator in range(0,pos_winning_pref):
 
                     for j in range(1, table.shape[1]):  # set all the other preferences to a null value
                         new_pref[i, j] = '-'
@@ -280,7 +281,7 @@ class Agent(object):
                     new_pref = copy.deepcopy(self.ns_preferences)
                     perms = permutations(new_pref[i])
                     for voter_perm in list(perms):
-                        print(" ",voter_perm)
+                        #print(" ",voter_perm)
                         new_pref = copy.deepcopy(self.ns_preferences)
                         new_pref[i]=voter_perm
                         self.calculate_new_strategic(new_pref, "BruteForce", i)
